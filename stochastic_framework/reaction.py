@@ -1,60 +1,55 @@
-"""
-Author: Charlie Cameron
-Date: 29th October 2025
-This code will basically add reactions to the stoichiometry.
-"""
 import numpy as np
 import pandas as pd
 
-
 class Reaction:
-
+    """
+    Stores reactions, species, stoichiometry, and reaction types.
+    Automatically calculates stoichiometric matrix and labels when reactions are added.
+    Can be passed directly into an SSA simulator.
+    """
 
     def __init__(self):
-
-        """
-        This initialises the class object.
-        """
-
+        """Initialize an empty reaction system."""
         self.reaction_set = []
-
-
+        self.species_list = []
+        self.stoichiometric_matrix = None
+        self.stoichiometric_df = None
+        self.reaction_labels = []
 
     def add_reaction(self, reactants: dict, products: dict, reaction_rate: float):
-        """Adds a reactions to the system"""
+        """
+        Add a reaction and automatically update stoichiometry.
 
+        Parameters
+        ----------
+        reactants : dict
+            Dictionary of reactants and their stoichiometric coefficients.
+        products : dict
+            Dictionary of products and their stoichiometric coefficients.
+        reaction_rate : float
+            Reaction rate constant.
+        """
+        # --- Basic validation ---
         assert isinstance(reactants, dict), "Reactants must be a dictionary"
         assert isinstance(products, dict), "Products must be a dictionary"
         assert isinstance(reaction_rate, float), "Reaction rate must be a float"
 
+        unique_species = set(reactants.keys()).union(products.keys())
+        if len(unique_species) > 2:
+            raise ValueError("Only supports up to two species currently")
 
-        unique_species = set(reactants.keys()).union(set(products.keys()))
-        
-        if len(unique_species) == 0:
-            raise ValueError("At least one reactant or product must be specified.")
-        elif len(unique_species) == 1:
-            print(f"This reaction involves only one species")
-        elif len(unique_species) == 2:
-            print(f"This reaction involves two species")
+        # Determine reaction type
+        n_reactants = sum(reactants.values())
+        if n_reactants == 0:
+            reaction_type = "zero_order"
+        elif n_reactants == 1:
+            reaction_type = "first_order"
+        elif n_reactants == 2:
+            reaction_type = "second_order"
         else:
-            raise ValueError("This can only handle two species currently.")
+            raise ValueError("Only supports up to two reactant molecules currently")
 
-        number_of_reacting_molecules = sum(list(reactants.values()))
-        
-        if number_of_reacting_molecules < 0:
-            raise ValueError("At least one reactant molecule must be specified.")
-        elif number_of_reacting_molecules ==0 :
-            reaction_type = 'zero_order'
-            print("A zeroth order reaction")
-        elif number_of_reacting_molecules == 1:
-            reaction_type = 'first_order'
-            print("A first order reaction")
-        elif number_of_reacting_molecules == 2:
-            reaction_type = 'second_order'
-            print("A second order reaction")
-        else:
-            raise ValueError("This can only handle reactions with up to two reacting molecules currently.")
-
+        # Store reaction
         self.reaction_set.append({
             "reactants": reactants,
             "products": products,
@@ -62,92 +57,52 @@ class Reaction:
             "reaction_type": reaction_type
         })
 
-    def calculate_stoichiometry(self):
-        """Calculate stoichiometry and return a labelled DataFrame."""
+        # Automatically update stoichiometry
+        self._update_stoichiometry()
 
-        self.number_of_reactions = len(self.reaction_set)
-        if self.number_of_reactions == 0:
-            raise ValueError("No reactions have been added to the system.")
-
-        # Determine species present
+    def _update_stoichiometry(self):
+        """Automatically recalculate species list and stoichiometric matrix."""
+        # Species
         species_set = set()
-        for reaction in self.reaction_set:
-            species_set.update(reaction["reactants"].keys())
-            species_set.update(reaction["products"].keys())
-
+        for r in self.reaction_set:
+            species_set.update(r["reactants"].keys())
+            species_set.update(r["products"].keys())
         self.species_list = sorted(species_set)
         self.number_of_species = len(self.species_list)
+        self.number_of_reactions = len(self.reaction_set)
 
-        # Initialise stoichiometric matrix
+        # Stoichiometric matrix
         self.stoichiometric_matrix = np.zeros(
-            (self.number_of_species, self.number_of_reactions),
-            dtype=int
+            (self.number_of_species, self.number_of_reactions), dtype=int
         )
 
-        # Fill matrix
-        for j, reaction in enumerate(self.reaction_set):
-            for species, coeff in reaction["reactants"].items():
-                i = self.species_list.index(species)
+        for j, r in enumerate(self.reaction_set):
+            for s, coeff in r["reactants"].items():
+                i = self.species_list.index(s)
                 self.stoichiometric_matrix[i, j] -= coeff
-            for species, coeff in reaction["products"].items():
-                i = self.species_list.index(species)
+            for s, coeff in r["products"].items():
+                i = self.species_list.index(s)
                 self.stoichiometric_matrix[i, j] += coeff
 
-        # Create labels
-        self.stoichiometric_species_labels = self.species_list
-        self.stoichiometric_reaction_labels = [f"R{j+1}" for j in range(self.number_of_reactions)]
+        # Labels
+        self.reaction_labels = [f"R{j+1}" for j in range(self.number_of_reactions)]
 
-        # Convert to DataFrame ✅
+        # Convert to DataFrame for easy viewing
         self.stoichiometric_df = pd.DataFrame(
             self.stoichiometric_matrix,
-            index=self.stoichiometric_species_labels,
-            columns=self.stoichiometric_reaction_labels
+            index=self.species_list,
+            columns=self.reaction_labels
         )
 
-        print(self.stoichiometric_df)
-        print(self.stoichiometric_matrix)
-    
-
     def print_reactions(self):
-        """
-        Print reactions in stochastic form.
-        If reactants or products are empty, display 0.
-        """
+        """Print all reactions in stochastic form, showing 0 if empty."""
+        for idx, r in enumerate(self.reaction_set):
+            react_str = " + ".join([f"{v}{k}" if v != 1 else f"{k}" 
+                                    for k, v in r["reactants"].items()]) or "0"
+            prod_str = " + ".join([f"{v}{k}" if v != 1 else f"{k}" 
+                                   for k, v in r["products"].items()]) or "0"
+            print(f"Reaction {idx+1}: {react_str} -> {prod_str} (Rate: {r['reaction_rate']})")
 
-        self.number_of_reactions = len(self.reaction_set)
-        if self.number_of_reactions == 0:
-            raise ValueError("No reactions have been added to the system.")
-
-        for idx, reaction in enumerate(self.reaction_set):
-            # Reactants string
-            if reaction["reactants"]:
-                reactant_str = ' + '.join([f"{v}{k}" if v != 1 else f"{k}" for k, v in reaction["reactants"].items()])
-            else:
-                reactant_str = "0"
-
-            # Products string
-            if reaction["products"]:
-                product_str = ' + '.join([f"{v}{k}" if v != 1 else f"{k}" for k, v in reaction["products"].items()])
-            else:
-                product_str = "0"
-
-            print(f"Reaction {idx + 1}: {reactant_str} -> {product_str} (Rate: {reaction['reaction_rate']})")
-
-
-
-
-
-           
-
-
-
-
-
-
-
-Model = Reaction()
-
-Model.add_reaction({"A": 1, "B": 1}, {"B": 2}, 0.1)
-Model.add_reaction({},{"B":1},0.1)
-Model.calculate_stoichiometry()
-Model.print_reactions()
+    def show_stoichiometry(self):
+        """Return stoichiometric matrix as a labeled DataFrame."""
+        return self.stoichiometric_df
