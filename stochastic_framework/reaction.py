@@ -108,7 +108,30 @@ class Reaction:
         print(self.stoichiometric_matrix)
     
 
+    def print_reactions(self):
+        """
+        Print reactions in stochastic form.
+        If reactants or products are empty, display 0.
+        """
 
+        self.number_of_reactions = len(self.reaction_set)
+        if self.number_of_reactions == 0:
+            raise ValueError("No reactions have been added to the system.")
+
+        for idx, reaction in enumerate(self.reaction_set):
+            # Reactants string
+            if reaction["reactants"]:
+                reactant_str = ' + '.join([f"{v}{k}" if v != 1 else f"{k}" for k, v in reaction["reactants"].items()])
+            else:
+                reactant_str = "0"
+
+            # Products string
+            if reaction["products"]:
+                product_str = ' + '.join([f"{v}{k}" if v != 1 else f"{k}" for k, v in reaction["products"].items()])
+            else:
+                product_str = "0"
+
+            print(f"Reaction {idx + 1}: {reactant_str} -> {product_str} (Rate: {reaction['reaction_rate']})")
 
 
 
@@ -124,6 +147,7 @@ class Reaction:
 
 Model = Reaction()
 
-Model.add_reaction({"B": 1, "A": 1}, {"B": 1}, 0.1)
+Model.add_reaction({"A": 1, "B": 1}, {"B": 2}, 0.1)
 Model.add_reaction({},{"B":1},0.1)
 Model.calculate_stoichiometry()
+Model.print_reactions()
