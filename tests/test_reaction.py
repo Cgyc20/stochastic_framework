@@ -109,4 +109,31 @@ def test_two_species_in_system():
     assert model.number_of_species == 2
     print("✅ test_two_species_in_system passed")
 
+
+def test_stoichiometric_matrix_values():
+    model = Reaction()
+    model.add_reaction({"A": 1}, {"B": 1}, 1.2)
+    model.add_reaction({"B": 1}, {"A": 1}, 1.3)
+    model.calculate_stoichiometry()
+    expected_matrix = [[-1, 1],
+                       [1, -1]]
+    assert (model.stoichiometric_matrix == expected_matrix).all()
+    print("✅ test_stoichiometric_matrix_values passed")
+
+def test_stoichiometric_matrix_switched_order():
+    """Test if it works for switchiing A and B around in the order"""
+    model_1 = Reaction()
+    model_1.add_reaction({"B": 1, "A":1}, {"A": 1}, 1.4)
+    model_1.add_reaction({"A": 1}, {"B": 1}, 1.0)
     
+    model_1_stoich = model_1.calculate_stoichiometry()
+
+    model_2 = Reaction()
+    model_2.add_reaction({"B": 1,"A": 1}, {"A": 1},1.4)
+    model_2.add_reaction({"A": 1}, {"B": 1}, 1.0)
+    model_2_stoich = model_2.calculate_stoichiometry()
+
+    print(model_1.stoichiometric_matrix)
+    print(model_2.stoichiometric_matrix)
+    assert (model_1.stoichiometric_matrix == model_2.stoichiometric_matrix).all()
+
