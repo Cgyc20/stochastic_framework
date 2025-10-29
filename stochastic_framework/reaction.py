@@ -62,9 +62,33 @@ class Reaction:
             "reaction_type": reaction_type
         })
 
-    # def calculate_stoichiometry():
-    #     """This will calculate the stoichiometry of the reaction system"""
+    def calculate_stoichiometry(self):
+        """This will calculate the stoichiometry of the reaction system"""
 
+        self.number_of_reactions = len(self.reaction_set)
+        
+        if self.number_of_reactions == 0:
+            raise ValueError("No reactions have been added to the system.")
+
+        else:
+            print(f"Calculating stochiometry for a total of {self.number_of_reactions} reactions")
+
+        #Check if we have one or two species present within the system
+        species_set = set()
+        for reaction in self.reaction_set:
+            species_set.update(reaction["reactants"].keys())
+            species_set.update(reaction["products"].keys())
+        self.species_list = list(species_set)
+        self.number_of_species = len(self.species_list)
+
+        if self.number_of_species == 1:
+            print("One species present in the system")
+        elif self.number_of_species == 2:
+            print("Two species present in the system")
+
+        
+
+           
 
 
 
@@ -76,3 +100,4 @@ Model = Reaction()
 
 Model.add_reaction({"A": 1, "B": 1}, {"B": 1}, 0.1)
 Model.add_reaction({},{"B":1},0.1)
+Model.calculate_stoichiometry()

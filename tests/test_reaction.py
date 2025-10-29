@@ -70,3 +70,43 @@ def test_correct_reaction_type_second_order():
     assert reaction_type == 'second_order'
     print("✅ test_correct_reaction_type_second_order passed")
 
+def test_no_reactions_added_stoichiometry_error():
+    model = Reaction()
+    try:
+        model.calculate_stoichiometry()
+    except ValueError:
+        print("✅ test_no_reactions_added_stoichiometry_error passed")
+        return
+    # If we get here → no error was raised → fail the test
+    print("❌ test_no_reactions_added_stoichiometry_error failed")
+
+def test_one_reaction_is_verified():
+    model = Reaction()
+    model.add_reaction({"A": 1}, {"B": 1}, 0.7)
+    model.calculate_stoichiometry()
+    assert model.number_of_reactions == 1
+    print("✅ test_one_reaction_is_verified passed")
+
+def test_two_reactions_verified():
+    model = Reaction()
+    model.add_reaction({"A": 1}, {"B": 1}, 0.8)
+    model.add_reaction({"B": 1}, {"A": 1}, 0.9)
+    model.calculate_stoichiometry()
+    assert model.number_of_reactions == 2
+    print("✅ test_two_reactions_verified passed")
+
+def test_one_species_in_system():
+    model = Reaction()
+    model.add_reaction({"A": 1}, {"A": 2}, 1.0)
+    model.calculate_stoichiometry()
+    assert model.number_of_species == 1
+    print("✅ test_one_species_in_system passed")
+
+def test_two_species_in_system():
+    model = Reaction()
+    model.add_reaction({"A": 1}, {"B": 1}, 1.1)
+    model.calculate_stoichiometry()
+    assert model.number_of_species == 2
+    print("✅ test_two_species_in_system passed")
+
+    
