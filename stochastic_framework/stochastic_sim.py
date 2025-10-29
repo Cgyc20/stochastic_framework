@@ -40,9 +40,21 @@ class SSA:
         
         if not isinstance(total_time, float):
             raise ValueError("Total time must be a float")
-        
+        # Validate initial_conditions type
         if not isinstance(initial_conditions, np.ndarray):
             raise ValueError("Initial conditions must be a numpy array")
+
+        if initial_conditions.shape != (number_of_compartments, len(self.species_list)):
+            raise ValueError(f"Initial conditions must be of shape ({number_of_compartments}, {len(self.species_list)})")
+
+        # Ensure initial_conditions are non-negative integers
+        if not np.issubdtype(initial_conditions.dtype, np.integer):
+            if np.all(initial_conditions >= 0):
+                initial_conditions = initial_conditions.astype(int)
+            else:
+                raise ValueError("Initial conditions must be non-negative integers")
+
+        self.initial_conditions = initial_conditions
         
         if initial_conditions.shape != (number_of_compartments, len(self.species_list)):
             raise ValueError(f"Initial conditions must be of shape ({number_of_compartments}, {len(self.species_list)})")
@@ -67,10 +79,63 @@ class SSA:
         self.initial_conditions = initial_conditions
         self.timestep = timestep
         self.Macroscopic_diffusion_rates = Macroscopic_diffusion_rates
+        self.timevector = np.arange(0,self.total_time, self.timestep)
+        self.h = self.domain_length / self.number_of_compartments
+        self.space = np.linspace(0,self.domain_length-self.h,self.number_of_compartments)
 
         print("All initial conditions are valid.")
 
-    
 
+        initial_tensor = self._generate_dataframes()
+
+
+        self.jump_rate_list = [macroscopic_rate/(self.h**2) for macroscopic_rate in self.Macroscopic_diffusion_rates]
+
+
+
+    def _generate_dataframes(self):
+        """
+        Generates the dataframes for the system. It is going to be a three dimensional tensor.
+        Dimensions = (number_of_timepoints, number_of_compartments, number_of_species)
+        """
+
+        tensor = np.zeros((len(self.timevector), self.number_of_compartments, len(self.species_list)), dtype = int)
+
+        tensor[0,:,:] = self.initial_conditions
+        self.tensor = tensor
+        return tensor
+    
+    def _propensity_calculation(self,
+                                dataframe: np.ndarray,
+                                propensity_vector: np.ndarray):
+        """
+        Calculates the propensity_vector functions for each reaction in each compartment.
+        This will also take into account the diffusion propensity_vector. 
+        
+        Parameters:
+         Dataframe: A np.ndarray dataframe of shape (self.number_of_compartments, number_of_species)
+        
+        propensity_vector: A np.ndarray array of shape (self.number_of_compartments*number_of_species + self.number_of_compartments*number_of_reactions,)
+
+        Returns: The updated Propensity function:
+        
+        """
+
+        assert dataframe.shape == (self.number_of_compartments, len(self.species_list)), "Dataframe shape is incorrect"
+        assert propensity_vector.shape == (self.number_of_compartments*len(self.species_list) + self.number_of_compartments*self.reaction_system.number_of_reactions,), "Propensity vector shape is incorrect"
+        #assert that the propensity elements are floats
+
+        
+        #First we will do the Movement (diffusion propensities)
+
+        for species_index in range(len(self.species_list)):
+            corresponding_jump_rate = self.jump_rate_list[species_index]
+
+            propensity_vector[species_index*self.number_of_compartments:(species_index+1)*self.number_of_compartments] = corresponding_jump_rate * dataframe[:,species_index]*2.0
+
+        # Now we are going to 
+
+        
+        
         
 
