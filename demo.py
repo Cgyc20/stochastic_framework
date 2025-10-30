@@ -17,7 +17,7 @@ SSA_class = SSA(ReactionData)
 print(SSA_class.stoichiometric_matrix)
 
 SSA_class.set_conditions(
-    number_of_compartments=3,
+    n_compartments=3,
     domain_length=10.0,
     total_time=100.0,
     initial_conditions=np.array([[50, 0],

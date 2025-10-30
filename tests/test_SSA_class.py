@@ -8,7 +8,7 @@ def test_compartments_correct():
     
     ssa_simulator = SSA(model)
     ssa_simulator.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=50.0,
         initial_conditions=np.array([[10, 5],
@@ -18,7 +18,7 @@ def test_compartments_correct():
     )
 
 
-    assert ssa_simulator.number_of_compartments == 2
+    assert ssa_simulator.n_compartments == 2
 
 
 def test_zero_compartment_instance():
@@ -29,7 +29,7 @@ def test_zero_compartment_instance():
     ssa_simulator = SSA(model)
     try:
         ssa_simulator.set_conditions(
-            number_of_compartments=0,
+            n_compartments=0,
             domain_length=10.0,
             total_time=50.0,
             initial_conditions=np.array([]),
@@ -49,7 +49,7 @@ def test_wrong_init_to_compartment_1():
     ssa_simulator = SSA(model)
     try:
         ssa_simulator.set_conditions(
-            number_of_compartments=3,
+            n_compartments=3,
             domain_length=10.0,
             total_time=50.0,
             initial_conditions=np.array([10,5]),
@@ -66,7 +66,7 @@ def test_wrong_init_to_compartment_2():
     ssa_simulator = SSA(model)
     try:
         ssa_simulator.set_conditions(
-            number_of_compartments=3,
+            n_compartments=3,
             domain_length=10.0,
             total_time=50.0,
             initial_conditions=np.array([[10.0],
@@ -86,7 +86,7 @@ def test_wrong_init_to_compartment_2():
     ssa_simulator = SSA(model)
     try:
         ssa_simulator.set_conditions(
-            number_of_compartments=3,
+            n_compartments=3,
             domain_length=10.0,
             total_time=50.0,
             initial_conditions=np.array([[10.0,10.0,10.0],
@@ -106,7 +106,7 @@ def test_correct_initial_conditions():
     ssa_simulator = SSA(model)
     
     ssa_simulator.set_conditions(
-        number_of_compartments=3,
+        n_compartments=3,
         domain_length=10.0,
         total_time=50.0,
         initial_conditions=np.array([[10.0,10.0, 10.0],
@@ -125,7 +125,7 @@ def test_negative_initial_conditions():
     ssa_simulator = SSA(model)
     try:
         ssa_simulator.set_conditions(
-            number_of_compartments=2,
+            n_compartments=2,
             domain_length=10.0,
             total_time=50.0,
             initial_conditions=np.array([[10.0, -5.0],
@@ -144,7 +144,7 @@ def test_tensor_shape():
     
     init = np.array([[10, 5], [20, 15]])
     ssa.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=5.0,
         initial_conditions=init,
@@ -153,7 +153,7 @@ def test_tensor_shape():
     )
     
     tensor = ssa._generate_dataframes()
-    expected_shape = (len(ssa.timevector), len(ssa.species_list),ssa.number_of_compartments)
+    expected_shape = (len(ssa.timevector), len(ssa.species_list),ssa.n_compartments)
     assert tensor.shape == expected_shape
 
 def test_initial_conds_is_in_tensor():
@@ -163,7 +163,7 @@ def test_initial_conds_is_in_tensor():
     
     init = np.array([[10, 5], [20, 15]])
     ssa.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=5.0,
         initial_conditions=init,
@@ -182,7 +182,7 @@ def test_jump_rates_are_correct():
     
     init = np.array([[10, 5], [20, 15]])
     ssa.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=5.0,
         initial_conditions=init,
@@ -202,7 +202,7 @@ def test_raises_error_with_wrong_propensity_dim():
 
     init = np.array([[10, 5], [20, 15]])
     ssa.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=5.0,
         initial_conditions=init,
@@ -229,7 +229,7 @@ def test_zero_order_propensity_diffusion():
 
     init = np.array([[10,1]])
     ssa.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=5.0,
         initial_conditions=init,
@@ -237,7 +237,7 @@ def test_zero_order_propensity_diffusion():
         Macroscopic_diffusion_rates=[0.01]
     )
 
-    propensity_vector = np.zeros(ssa.number_of_compartments*len(ssa.species_list) + ssa.number_of_compartments*ssa.reaction_system.number_of_reactions)
+    propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
 
     propensity_output = ssa._propensity_calculation(
         dataframe=ssa.initial_conditions,
@@ -259,7 +259,7 @@ def test_zero_order_propensity():
 
     init = np.array([[10,1]])
     ssa.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=5.0,
         initial_conditions=init,
@@ -267,17 +267,17 @@ def test_zero_order_propensity():
         Macroscopic_diffusion_rates=[0.01]
     )
 
-    propensity_vector = np.zeros(ssa.number_of_compartments*len(ssa.species_list) + ssa.number_of_compartments*ssa.reaction_system.number_of_reactions)
+    propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
 
     propensity_output = ssa._propensity_calculation(
         dataframe=ssa.initial_conditions,
         propensity_vector=propensity_vector
     )
     # For zero-order reaction, propensity should equal the rate constant in each compartment
-    h = ssa.domain_length / ssa.number_of_compartments
+    h = ssa.domain_length / ssa.n_compartments
     expected_propensity = 1.0*h
-    for i in range(ssa.number_of_compartments):
-        assert propensity_output[ssa.number_of_compartments*len(ssa.species_list) + i] == expected_propensity
+    for i in range(ssa.n_compartments):
+        assert propensity_output[ssa.n_compartments*len(ssa.species_list) + i] == expected_propensity
 
 
 def test_first_order_propensity():
@@ -288,7 +288,7 @@ def test_first_order_propensity():
 
     init = np.array([[10, 5], [0, 0]])
     ssa.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=5.0,
         initial_conditions=init,
@@ -296,7 +296,7 @@ def test_first_order_propensity():
         Macroscopic_diffusion_rates=[0.01, 0.1]
     )
 
-    propensity_vector = np.zeros(ssa.number_of_compartments*len(ssa.species_list) + ssa.number_of_compartments*ssa.reaction_system.number_of_reactions)
+    propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
 
     propensity_output = ssa._propensity_calculation(
         dataframe=ssa.initial_conditions,
@@ -304,9 +304,9 @@ def test_first_order_propensity():
     )
     # For first-order reaction, propensity should equal rate constant * number of A in each compartment
     rate = 0.5
-    for i in range(ssa.number_of_compartments):
+    for i in range(ssa.n_compartments):
         expected_propensity = rate * init[0,i]
-        assert propensity_output[ssa.number_of_compartments*len(ssa.species_list) + i] == expected_propensity
+        assert propensity_output[ssa.n_compartments*len(ssa.species_list) + i] == expected_propensity
 
 
 def test_second_order_propensity():
@@ -317,7 +317,7 @@ def test_second_order_propensity():
 
     init = np.array([[10, 5], [0, 0]])
     ssa.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=5.0,
         initial_conditions=init,
@@ -325,7 +325,7 @@ def test_second_order_propensity():
         Macroscopic_diffusion_rates=[0.01, 0.1]
     )
 
-    propensity_vector = np.zeros(ssa.number_of_compartments*len(ssa.species_list) + ssa.number_of_compartments*ssa.reaction_system.number_of_reactions)
+    propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
 
     propensity_output = ssa._propensity_calculation(
         dataframe=ssa.initial_conditions,
@@ -333,11 +333,11 @@ def test_second_order_propensity():
     )
     # For second-order reaction A + A, propensity should equal rate constant * n_A * (n_A - 1) / h in each compartment
     rate = 0.2
-    h = ssa.domain_length / ssa.number_of_compartments
-    for i in range(ssa.number_of_compartments):
+    h = ssa.domain_length / ssa.n_compartments
+    for i in range(ssa.n_compartments):
         n_A = init[0,i]
         expected_propensity = rate * n_A * (n_A - 1) / h
-        assert propensity_output[ssa.number_of_compartments*len(ssa.species_list) + i] == expected_propensity
+        assert propensity_output[ssa.n_compartments*len(ssa.species_list) + i] == expected_propensity
 
 def test_zero_and_first():
 
@@ -348,7 +348,7 @@ def test_zero_and_first():
 
     init = np.array([[10, 5], [0, 0]])
     ssa.set_conditions(
-        number_of_compartments=2,
+        n_compartments=2,
         domain_length=10.0,
         total_time=5.0,
         initial_conditions=init,
@@ -356,23 +356,23 @@ def test_zero_and_first():
         Macroscopic_diffusion_rates=[0.01, 0.1]
     )
 
-    propensity_vector = np.zeros(ssa.number_of_compartments*len(ssa.species_list) + ssa.number_of_compartments*ssa.reaction_system.number_of_reactions)
+    propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
 
     propensity_output = ssa._propensity_calculation(
         dataframe=ssa.initial_conditions,
         propensity_vector=propensity_vector
     )
     # Check zero-order reaction propensities
-    h = ssa.domain_length / ssa.number_of_compartments
+    h = ssa.domain_length / ssa.n_compartments
     expected_zero_order_propensity = 1.0*h
-    for i in range(ssa.number_of_compartments):
-        assert propensity_output[ssa.number_of_compartments*len(ssa.species_list) + i] == expected_zero_order_propensity
+    for i in range(ssa.n_compartments):
+        assert propensity_output[ssa.n_compartments*len(ssa.species_list) + i] == expected_zero_order_propensity
 
     # Check first-order reaction propensities
     rate = 0.5
-    for i in range(ssa.number_of_compartments):
+    for i in range(ssa.n_compartments):
         expected_first_order_propensity = rate * init[0,i]
-        assert propensity_output[ssa.number_of_compartments*len(ssa.species_list) + ssa.number_of_compartments + i] == expected_first_order_propensity
+        assert propensity_output[ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments + i] == expected_first_order_propensity
 
 
 def test_multiple_compartments():
@@ -384,7 +384,7 @@ def test_multiple_compartments():
 
     init = np.array([[10, 5, 15, 10, 5, 3], [0, 0, 0, 1,2,3]])
     ssa.set_conditions(
-        number_of_compartments=6,
+        n_compartments=6,
         domain_length=30.0,
         total_time=5.0,
         initial_conditions=init,
@@ -392,7 +392,7 @@ def test_multiple_compartments():
         Macroscopic_diffusion_rates=[0.01, 0.02]
     )
 
-    propensity_vector = np.zeros(ssa.number_of_compartments*len(ssa.species_list) + ssa.number_of_compartments*ssa.reaction_system.number_of_reactions)
+    propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
     propensity_output = ssa._propensity_calculation(
         dataframe=ssa.initial_conditions,
         propensity_vector=propensity_vector
@@ -400,21 +400,21 @@ def test_multiple_compartments():
     # Check first the diffusion is correct
     jump_rate_A = ssa.jump_rate_list[0]
     jump_rate_B = ssa.jump_rate_list[1]
-    for i in range(ssa.number_of_compartments):
+    for i in range(ssa.n_compartments):
         expected_diffusion_A = jump_rate_A * init[0,i]*2.0
         expected_diffusion_B = jump_rate_B * init[1,i]*2.0
         assert propensity_output[i] == expected_diffusion_A
-        assert propensity_output[ssa.number_of_compartments + i] == expected_diffusion_B
+        assert propensity_output[ssa.n_compartments + i] == expected_diffusion_B
     
     rate_first = 0.3
-    for i in range(ssa.number_of_compartments):
+    for i in range(ssa.n_compartments):
         expected_first_order_propensity = rate_first * init[0,i]
-        assert propensity_output[ssa.number_of_compartments*len(ssa.species_list) + i] == expected_first_order_propensity
+        assert propensity_output[ssa.n_compartments*len(ssa.species_list) + i] == expected_first_order_propensity
 
     rate_second = 0.4
-    h = ssa.domain_length / ssa.number_of_compartments
-    for i in range(ssa.number_of_compartments):
+    h = ssa.domain_length / ssa.n_compartments
+    for i in range(ssa.n_compartments):
         n_A = init[0,i]
         n_B = init[1,i]
         expected_second_order_propensity = rate_second * n_A * n_B / h
-        assert propensity_output[ssa.number_of_compartments*len(ssa.species_list) + ssa.number_of_compartments + i] == expected_second_order_propensity
+        assert propensity_output[ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments + i] == expected_second_order_propensity

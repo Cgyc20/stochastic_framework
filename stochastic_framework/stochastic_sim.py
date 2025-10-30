@@ -19,14 +19,17 @@ class SSA:
         """
         self.reaction_system = reaction_system
         self.species_list = reaction_system.species_list
+        self.n_species = len(self.species_list)
+    
         self.species_index = reaction_system.species_index
         self.stoichiometric_matrix = reaction_system.stoichiometric_matrix
         self.number_of_reactions = reaction_system.number_of_reactions
         self.reaction_set = reaction_system.reaction_set
+      
     
 
     def set_conditions(self, 
-                   number_of_compartments: int,
+                   n_compartments: int,
                    domain_length: float,
                    total_time: float,
                    initial_conditions: np.ndarray,
@@ -35,7 +38,7 @@ class SSA:
         
         """Set initial conditions and validate inputs."""
         
-        if not isinstance(number_of_compartments, int) or number_of_compartments <= 0:
+        if not isinstance(n_compartments, int) or n_compartments <= 0:
             raise ValueError("Number of compartments must be positive")
         
         if not isinstance(domain_length, float):
@@ -47,8 +50,8 @@ class SSA:
         if not isinstance(initial_conditions, np.ndarray):
             raise ValueError("Initial conditions must be a numpy array")
 
-        if initial_conditions.shape != (len(self.species_list), number_of_compartments):
-            raise ValueError(f"Initial conditions must be of shape ({len(self.species_list)}, {number_of_compartments})")
+        if initial_conditions.shape != (self.n_species, n_compartments):
+            raise ValueError(f"Initial conditions must be of shape ({self.n_species}, {n_compartments})")
 
         # Ensure initial_conditions are non-negative integers
         if not np.issubdtype(initial_conditions.dtype, np.integer):
@@ -66,7 +69,7 @@ class SSA:
         if not isinstance(Macroscopic_diffusion_rates, list):
             raise ValueError("Diffusion rates must be a list")
         
-        if len(Macroscopic_diffusion_rates) != len(self.species_list):
+        if len(Macroscopic_diffusion_rates) != self.n_species:
             raise ValueError("Diffusion rates list length must match number of species")
         
         for rate in Macroscopic_diffusion_rates:
@@ -74,16 +77,17 @@ class SSA:
                 raise ValueError("Each diffusion rate must be a float")
 
         # If all checks pass, store values
-        self.number_of_compartments = number_of_compartments
+        self.n_compartments = n_compartments
         self.domain_length = domain_length
         self.total_time = total_time
         self.initial_conditions = initial_conditions
         self.timestep = timestep
         self.Macroscopic_diffusion_rates = Macroscopic_diffusion_rates
         self.timevector = np.arange(0,self.total_time, self.timestep)
-        self.h = self.domain_length / self.number_of_compartments
-        self.space = np.linspace(0,self.domain_length-self.h,self.number_of_compartments)
-
+        self.h = self.domain_length / self.n_compartments
+        self.space = np.linspace(0,self.domain_length-self.h,self.n_compartments)
+        
+        self.propensity_vector = np.zeros(self.n_compartments*self.n_species + self.n_compartments*self.reaction_system.number_of_reactions)
         print("All initial conditions are valid.")
 
 
@@ -97,10 +101,10 @@ class SSA:
     def _generate_dataframes(self):
         """
         Generates the dataframes for the system. It is going to be a three dimensional tensor.
-        Dimensions = (number_of_timepoints, number_of_compartments, number_of_species)
+        Dimensions = (number_of_timepoints, n_compartments, number_of_species)
         """
 
-        tensor = np.zeros((len(self.timevector),  len(self.species_list), self.number_of_compartments), dtype = int)
+        tensor = np.zeros((len(self.timevector),  self.n_species, self.n_compartments), dtype = int)
 
         tensor[0,:,:] = self.initial_conditions
         self.tensor = tensor
@@ -114,38 +118,38 @@ class SSA:
         This will also take into account the diffusion propensity_vector. 
         
         Parameters:
-         Dataframe: A np.ndarray dataframe of shape (self.number_of_compartments, number_of_species)
+         Dataframe: A np.ndarray dataframe of shape (self.n_compartments, number_of_species)
         
-        propensity_vector: A np.ndarray array of shape (self.number_of_compartments*number_of_species + self.number_of_compartments*number_of_reactions,)
+        propensity_vector: A np.ndarray array of shape (self.n_compartments*number_of_species + self.n_compartments*number_of_reactions,)
 
         Returns: The updated Propensity function:
         
         """
 
-        assert dataframe.shape == (len(self.species_list), self.number_of_compartments), "Dataframe shape is incorrect"
-        assert propensity_vector.shape == (self.number_of_compartments*len(self.species_list) + self.number_of_compartments*self.reaction_system.number_of_reactions,), "Propensity vector shape is incorrect"
+        assert dataframe.shape == (self.n_species, self.n_compartments), "Dataframe shape is incorrect"
+        assert propensity_vector.shape == (self.n_compartments*self.n_species + self.n_compartments*self.reaction_system.number_of_reactions,), "Propensity vector shape is incorrect"
         #assert that the propensity elements are floats
 
         
         #First we will do the Movement (diffusion propensities)
 
-        for species_index in range(len(self.species_list)):
+        for species_index in range(self.n_species):
             corresponding_jump_rate = self.jump_rate_list[species_index]
 
-            propensity_vector[species_index*self.number_of_compartments:(species_index+1)*self.number_of_compartments] = corresponding_jump_rate * dataframe[species_index, :]*2.0
+            propensity_vector[species_index*self.n_compartments:(species_index+1)*self.n_compartments] = corresponding_jump_rate * dataframe[species_index, :]*2.0
 
         # Now we are going to run the reactions, from the reaction list. Note that we have self.number_of_reactions total reactions so we need to iterate through this list.
 
         #Note that for this we are going to fill up the propensities vectors from
-        #Propensity[self.number_of_compartments*number_of_species: self.number_of_compartments*number_of_species+ self.number_of_compartments*number_of_reactions, ]
+        #Propensity[self.n_compartments*number_of_species: self.n_compartments*number_of_species+ self.n_compartments*number_of_reactions, ]
     
         # print("Species_index list", self.species_index)
 
         # print("Species list:", self.species_list)
         
         for i, reaction in enumerate(self.reaction_set):
-            start = self.number_of_compartments * len(self.species_list) + i * self.number_of_compartments
-            end = start + self.number_of_compartments
+            start = self.n_compartments * self.n_species + i * self.n_compartments
+            end = start + self.n_compartments
 
             reaction_type = reaction['reaction_type']
             reactant_indices = reaction['reactant_indices']
@@ -173,10 +177,40 @@ class SSA:
             else:
                 raise ValueError(f"Unknown reaction type {reaction_type}")
             
-
         return propensity_vector
+    
+    def run_simulation(self):
+        """
+        Run the SSA simulation.
+        """
+        
+        t = 0.0
+        old_time = t
+
+        current_frame = self.initial_conditions.copy()
+
+        while t<self.total_time:
+
+            propensity_vector = self._propensity_calculation(
+                dataframe=current_frame,
+                propensity_vector=self.propensity_vector
+            )
+
+            alpha0 = np.sum(propensity_vector)
+            if alpha0 == 0:
+                #No further action
+                break
+
+            r1, r2, r3 = np.random.rand(3)
+            tau = (1/alpha0)*np.log(1/r1)
+            alpha_cum = np.cumsum(propensity_vector)
+            index = np.searchsorted(alpha_cum, r2*alpha0)
+            compartment_index = index % self.n_compartments
+
+            # We first execute the diffusion reactions for each species of the model.
 
 
+         
     
 
         
