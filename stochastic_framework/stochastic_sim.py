@@ -132,7 +132,7 @@ class SSA:
         for species_index in range(len(self.species_list)):
             corresponding_jump_rate = self.jump_rate_list[species_index]
 
-            propensity_vector[species_index*self.number_of_compartments:(species_index+1)*self.number_of_compartments] = corresponding_jump_rate * dataframe[:,species_index]*2.0
+            propensity_vector[species_index*self.number_of_compartments:(species_index+1)*self.number_of_compartments] = corresponding_jump_rate * dataframe[species_index, :]*2.0
 
         # Now we are going to run the reactions, from the reaction list. Note that we have self.number_of_reactions total reactions so we need to iterate through this list.
 
@@ -158,18 +158,18 @@ class SSA:
             
             elif reaction_type == 'first_order':
                 idx = reactant_indices[0]
-                propensity_vector[start:end] = rate*dataframe[:, idx]
+                propensity_vector[start:end] = rate*dataframe[idx,:]
 
             elif reaction_type == 'second_order':
                 if len(reactant_indices) == 1: #Then its a single species reaction.
                     
                     idx = reactant_indices[0]
-                    propensity_vector[start:end] = rate*dataframe[:, idx]*(dataframe[:, idx]-1)/self.h
+                    propensity_vector[start:end] = rate*dataframe[idx,:]*(dataframe[idx,:]-1)/self.h
 
                 else:
                     #A + B
                     idx1, idx2 = reactant_indices
-                    propensity_vector[start:end] = rate*dataframe[:, idx1]*dataframe[:, idx2]/self.h
+                    propensity_vector[start:end] = rate*dataframe[idx1, :]*dataframe[idx2,:]/self.h
             else:
                 raise ValueError(f"Unknown reaction type {reaction_type}")
             
