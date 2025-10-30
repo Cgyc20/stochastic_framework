@@ -4,15 +4,16 @@ from matplotlib.animation import FuncAnimation
 import seaborn as sns
 
 # Path to saved SSA data
-ssa_path = "SSA_data.npz"
 
+
+ssa_path = "data/SSA_data.npz"
 # ---- USER OPTIONS ----
 PLOT_CONCENTRATION = True   # True → show concentrations; False → show molecule counts
 RESCALE_DOMAIN = True       # True → scale x-axis to [0, 1]
 OMEGA =  10                # Must match your SSA simulation
 # -----------------------
 
-def main(ssa_path):
+def main():
     sns.set_theme(style="whitegrid")
 
     # Load SSA data
@@ -96,17 +97,17 @@ def main(ssa_path):
 
     #calculate analytic mass over time
 
-    r_birth = 0.5
-    r_death = 0.8
-    initial_concentration = 30 / (OMEGA* h)  # assuming initial molecule count of 30 per compartment
+    # r_birth = 0.5
+    # r_death = 0.8
+    # initial_concentration = 30 / (OMEGA* h)  # assuming initial molecule count of 30 per compartment
 
-    analytic_conc = initial_concentration * np.exp((r_birth-r_death)*time_vector)
+    # analytic_conc = initial_concentration * np.exp((r_birth-r_death)*time_vector)
     # ---- TOTALS PLOT ----
     plt.figure(figsize=(8, 6))
     for total, color, name in zip(species_totals, colors, species_names):
         plt.plot(time_vector, total, color=color, label=f"{name} Total")
-    plt.plot(time_vector, analytic_conc if PLOT_CONCENTRATION else analytic_conc * OMEGA * h * n_compartments,
-             'k--', label="Analytic Solution", linewidth=2)
+    # plt.plot(time_vector, analytic_conc if PLOT_CONCENTRATION else analytic_conc * OMEGA * h * n_compartments,
+    #          'k--', label="Analytic Solution", linewidth=2)
     plt.xlabel("Time")
     plt.ylabel("Integrated " + ("Concentration" if PLOT_CONCENTRATION else "Molecule Count"))
     plt.title(f"Total {'Concentration' if PLOT_CONCENTRATION else 'Mass'} Over Time")
@@ -116,4 +117,5 @@ def main(ssa_path):
 
 
 if __name__ == "__main__":
-    main(ssa_path)
+
+    main()

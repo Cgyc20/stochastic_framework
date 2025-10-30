@@ -85,7 +85,7 @@ def main():
     average_output = SSA_class.run_simulation(n_repeats=5)
 
     SSA_class.save_simulation_data(
-        filename="/Users/charliecameron/CodingHub/PhD/Y2_code/stochastic_framework/SSA_data.npz",
+        filename="/Users/charliecameron/CodingHub/PhD/Y2_code/stochastic_framework/data/SSA_data.npz",
         simulation_result=average_output
     ) 
 

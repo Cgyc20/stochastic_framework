@@ -18,4 +18,6 @@ build-backend = "poetry.core.masonry.api"
 
 main = "examples.main:main"
 demo = "examples.demo:main"
+birth_death = "examples.birth_death:main"
+animate = "examples.animate:main"
 
