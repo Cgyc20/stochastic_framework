@@ -32,3 +32,5 @@ SSA_class._propensity_calculation(
     dataframe=SSA_class.initial_conditions,
     propensity_vector=np.zeros(SSA_class.number_of_compartments*len(SSA_class.species_list) + SSA_class.number_of_compartments*SSA_class.reaction_system.number_of_reactions)
 )
+
+print(SSA_class.reaction_set[0])

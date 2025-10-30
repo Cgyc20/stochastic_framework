@@ -19,8 +19,11 @@ class SSA:
         """
         self.reaction_system = reaction_system
         self.species_list = reaction_system.species_list
+        self.species_index = reaction_system.species_index
         self.stoichiometric_matrix = reaction_system.stoichiometric_matrix
-
+        self.number_of_reactions = reaction_system.number_of_reactions
+        self.reaction_set = reaction_system.reaction_set
+    
 
     def set_conditions(self, 
                    number_of_compartments: int,
@@ -133,7 +136,50 @@ class SSA:
 
             propensity_vector[species_index*self.number_of_compartments:(species_index+1)*self.number_of_compartments] = corresponding_jump_rate * dataframe[:,species_index]*2.0
 
-        # Now we are going to 
+        # Now we are going to run the reactions, from the reaction list. Note that we have self.number_of_reactions total reactions so we need to iterate through this list.
+
+        #Note that for this we are going to fill up the propensities vectors from
+        #Propensity[self.number_of_compartments*number_of_species: self.number_of_compartments*number_of_species+ self.number_of_compartments*number_of_reactions, ]
+    
+        print("Species_index list", self.species_index)
+
+        print("Species list:", self.species_list)
+        
+        for i, reaction in enumerate(self.reaction_set):
+            start = self.number_of_compartments * len(self.species_list) + i * self.number_of_compartments
+            end = start + self.number_of_compartments
+
+            reaction_type = reaction['reaction_type']
+            reactant_indices = reaction['reactant_indices']
+            rate = reaction['reaction_rate']
+
+            if reaction_type == 'zero_order':
+                # Constant production
+                propensity_vector[start:end] = rate * self.h
+
+            
+            elif reaction_type == 'first_order':
+                idx = reactant_indices[0]
+                propensity_vector[start:end] = rate*dataframe[:, idx]
+
+            elif reaction_type == 'second_order':
+                if len(reactant_indices) == 1: #Then its a single species reaction.
+                    
+                    idx = reactant_indices[0]
+                    propensity_vector[start:end] = rate*dataframe[:, idx]*(dataframe[:, idx]-1)/self.h
+
+                else:
+                    #A + B
+                    idx1, idx2 = reactant_indices
+                    propensity_vector[start:end] = rate*dataframe[:, idx1]*dataframe[:, idx2]/self.h
+            else:
+                raise ValueError(f"Unknown reaction type {reaction_type}")
+            
+
+        return propensity_vector
+
+
+    
 
         
         

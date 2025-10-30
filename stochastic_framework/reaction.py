@@ -39,12 +39,12 @@ class Reaction:
             raise ValueError("Only supports up to two species currently")
 
         # Determine reaction type
-        n_reactants = sum(reactants.values())
-        if n_reactants == 0:
+        reactants_order = sum(reactants.values())
+        if reactants_order == 0:
             reaction_type = "zero_order"
-        elif n_reactants == 1:
+        elif reactants_order == 1:
             reaction_type = "first_order"
-        elif n_reactants == 2:
+        elif reactants_order == 2:
             reaction_type = "second_order"
         else:
             raise ValueError("Only supports up to two reactant molecules currently")
@@ -67,7 +67,9 @@ class Reaction:
         for r in self.reaction_set:
             species_set.update(r["reactants"].keys())
             species_set.update(r["products"].keys())
-        self.species_list = sorted(species_set)
+        self.species_list = sorted(species_set) #THis is the alphabetically ordered list.
+        self.species_index = {s:i for i,s in enumerate(self.species_list)} #This gives the species indexing dictionary
+        
         self.number_of_species = len(self.species_list)
         self.number_of_reactions = len(self.reaction_set)
 
@@ -83,6 +85,14 @@ class Reaction:
             for s, coeff in r["products"].items():
                 i = self.species_list.index(s)
                 self.stoichiometric_matrix[i, j] += coeff
+
+        # Convert all reactant/product species names in reaction_set to indices
+        
+         # --- Precompute species indices in each reaction for fast lookup ---
+        for r in self.reaction_set:
+            r["reactant_indices"] = [self.species_index[s] for s in r["reactants"].keys()]
+            r["product_indices"] = [self.species_index[s] for s in r["products"].keys()]
+
 
         # Labels
         self.reaction_labels = [f"R{j+1}" for j in range(self.number_of_reactions)]
