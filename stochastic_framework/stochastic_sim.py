@@ -1,6 +1,6 @@
 import numpy as np
 from .reaction import Reaction
-
+from tqdm import tqdm
 
 
 class SSA:
@@ -86,7 +86,7 @@ class SSA:
         self.timevector = np.arange(0,self.total_time, self.timestep)
         self.h = self.domain_length / self.n_compartments
         self.space = np.linspace(0,self.domain_length-self.h,self.n_compartments)
-        
+
         self.propensity_vector = np.zeros(self.n_compartments*self.n_species + self.n_compartments*self.reaction_system.number_of_reactions)
         print("All initial conditions are valid.")
 
@@ -179,7 +179,7 @@ class SSA:
             
         return propensity_vector
     
-    def run_simulation(self):
+    def _SSA_loop(self):
         """
         Run the SSA simulation.
         """
@@ -208,6 +208,71 @@ class SSA:
             compartment_index = index % self.n_compartments
 
             # We first execute the diffusion reactions for each species of the model.
+            if index < self.n_species*self.n_compartments:
+                #Then we get diffusion.
+                species_index = index // self.n_compartments
+                
+                if r3 < 0.5:
+                    #Move left
+                    current_frame[species_index, compartment_index] -= 1
+                    current_frame[species_index, (compartment_index - 1)%self.n_compartments] += 1
+                else:
+                    #Move right
+                    current_frame[species_index, compartment_index] -= 1
+                    current_frame[species_index, (compartment_index + 1)%self.n_compartments] += 1
+
+            else:
+                # we will have a reaction occuring (not diffusion)
+
+                reaction_index = (index - self.n_species*self.n_compartments)//self.n_compartments
+
+                stoichiometric_update = self.stoichiometric_matrix[:, reaction_index]
+                current_frame[:, compartment_index] += stoichiometric_update
+            old_time = t
+            t += tau
+
+            ind_before = int(old_time / self.timestep)
+            ind_after = int(t / self.timestep)
+
+            if ind_after > ind_before:
+                for time_index in range(ind_before + 1, min(ind_after + 1, len(self.timevector))):
+                    self.tensor[time_index, :, :] = current_frame
+
+        return self.tensor
+    
+
+    def run_simulation(self, 
+                       n_repeats: int):
+        
+        """
+        Run the SSA simulation multiple times.
+        Parameters:
+        n_repeats : int
+            Number of simulation repeats.
+        Returns:
+        -------
+        results : np.ndarray
+            Array of shape (n_repeats, number_of_timepoints, n_species, n_compartments)
+            containing the simulation results.
+        """
+
+        summed_dataframe = np.zeros((len(self.timevector), self.n_species, self.n_compartments), dtype=int)
+        final_dataframe = np.zeros((len(self.timevector), self.n_species, self.n_compartments), dtype=float)
+
+        for _ in tqdm(range(n_repeats)):
+            self._generate_dataframes()  # Reset tensor for each repeat
+            summed_dataframe += self._SSA_loop()
+
+        
+        final_dataframe += summed_dataframe / n_repeats
+
+        return final_dataframe
+    
+
+    
+
+
+
 
 
          
