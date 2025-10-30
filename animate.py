@@ -50,7 +50,7 @@ def main(ssa_path):
     ax.set_xlabel("Spatial Domain")
     ax.set_ylabel("Number of Molecules")
     ax.set_title("SSA Simulation")
-    ax.set_xlim(-5, domain_length)
+    ax.set_xlim(0, domain_length)
     ax.set_ylim(0, max(grid.max() for grid in species_grids)*1.1)
     ax.legend()
 
