@@ -47,8 +47,8 @@ class SSA:
         if not isinstance(initial_conditions, np.ndarray):
             raise ValueError("Initial conditions must be a numpy array")
 
-        if initial_conditions.shape != (number_of_compartments, len(self.species_list)):
-            raise ValueError(f"Initial conditions must be of shape ({number_of_compartments}, {len(self.species_list)})")
+        if initial_conditions.shape != (len(self.species_list), number_of_compartments):
+            raise ValueError(f"Initial conditions must be of shape ({len(self.species_list)}, {number_of_compartments})")
 
         # Ensure initial_conditions are non-negative integers
         if not np.issubdtype(initial_conditions.dtype, np.integer):
@@ -59,9 +59,7 @@ class SSA:
 
         self.initial_conditions = initial_conditions
         
-        if initial_conditions.shape != (number_of_compartments, len(self.species_list)):
-            raise ValueError(f"Initial conditions must be of shape ({number_of_compartments}, {len(self.species_list)})")
-        
+      
         if not isinstance(timestep, float):
             raise ValueError("Timestep must be a float")
         
@@ -102,7 +100,7 @@ class SSA:
         Dimensions = (number_of_timepoints, number_of_compartments, number_of_species)
         """
 
-        tensor = np.zeros((len(self.timevector), self.number_of_compartments, len(self.species_list)), dtype = int)
+        tensor = np.zeros((len(self.timevector),  len(self.species_list), self.number_of_compartments), dtype = int)
 
         tensor[0,:,:] = self.initial_conditions
         self.tensor = tensor
@@ -124,7 +122,7 @@ class SSA:
         
         """
 
-        assert dataframe.shape == (self.number_of_compartments, len(self.species_list)), "Dataframe shape is incorrect"
+        assert dataframe.shape == (len(self.species_list), self.number_of_compartments), "Dataframe shape is incorrect"
         assert propensity_vector.shape == (self.number_of_compartments*len(self.species_list) + self.number_of_compartments*self.reaction_system.number_of_reactions,), "Propensity vector shape is incorrect"
         #assert that the propensity elements are floats
 
@@ -141,9 +139,9 @@ class SSA:
         #Note that for this we are going to fill up the propensities vectors from
         #Propensity[self.number_of_compartments*number_of_species: self.number_of_compartments*number_of_species+ self.number_of_compartments*number_of_reactions, ]
     
-        print("Species_index list", self.species_index)
+        # print("Species_index list", self.species_index)
 
-        print("Species list:", self.species_list)
+        # print("Species list:", self.species_list)
         
         for i, reaction in enumerate(self.reaction_set):
             start = self.number_of_compartments * len(self.species_list) + i * self.number_of_compartments

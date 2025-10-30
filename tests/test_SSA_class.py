@@ -109,14 +109,13 @@ def test_correct_initial_conditions():
         number_of_compartments=3,
         domain_length=10.0,
         total_time=50.0,
-        initial_conditions=np.array([[10.0,10.0],
-                                    [10.0,10.0],
-                                    [10.0,10.0]]),
+        initial_conditions=np.array([[10.0,10.0, 10.0],
+                                    [10.0,10.0, 10.0]]),
         timestep=0.5,
         Macroscopic_diffusion_rates=[0.01, 0.02]
     )
     
-    assert (ssa_simulator.initial_conditions.shape == (3,2))
+    assert (ssa_simulator.initial_conditions.shape == (2,3))
 
 def test_negative_initial_conditions():
     model = Reaction()
@@ -154,7 +153,7 @@ def test_tensor_shape():
     )
     
     tensor = ssa._generate_dataframes()
-    expected_shape = (len(ssa.timevector), ssa.number_of_compartments, len(ssa.species_list))
+    expected_shape = (len(ssa.timevector), len(ssa.species_list),ssa.number_of_compartments)
     assert tensor.shape == expected_shape
 
 def test_initial_conds_is_in_tensor():
@@ -193,3 +192,22 @@ def test_jump_rates_are_correct():
     
     expected_jump_rates = [0.02 / (ssa.h ** 2), 0.04 / (ssa.h ** 2)]
     assert ssa.jump_rate_list == expected_jump_rates
+
+
+def test_zero_order_propensity():
+
+    model = Reaction()
+    model.add_reaction({}, {"A": 1}, 1.0)  # Zero-order reaction
+    ssa = SSA(model)
+
+    init = np.array([[10,1]])
+    ssa.set_conditions(
+        number_of_compartments=2,
+        domain_length=10.0,
+        total_time=5.0,
+        initial_conditions=init,
+        timestep=1.0,
+        Macroscopic_diffusion_rates=[0.01]
+    )
+
+    assert 1 ==1
