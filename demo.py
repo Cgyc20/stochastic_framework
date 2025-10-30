@@ -17,11 +17,11 @@ SSA_class = SSA(ReactionData)
 print(SSA_class.stoichiometric_matrix)
 
 SSA_class.set_conditions(
-    n_compartments=3,
+    n_compartments=5,
     domain_length=10.0,
     total_time=100.0,
-    initial_conditions=np.array([[50, 0, 10],
-                                [30, 10, 5],
+    initial_conditions=np.array([[5, 0, 1,2,5 ],
+                                [30, 10, 5, 1,2],
                                     ]),
 
     timestep=0.1,
@@ -34,3 +34,10 @@ SSA_class._propensity_calculation(
 )
 
 average_output = SSA_class.run_simulation(n_repeats=5)
+
+SSA_class.save_simulation_data(
+    filename="/Users/charliecameron/CodingHub/PhD/Y2_code/stochastic_framework/SSA_data.npz",
+    simulation_result=average_output
+) 
+
+print(SSA_class.space)

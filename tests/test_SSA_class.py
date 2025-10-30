@@ -418,3 +418,43 @@ def test_multiple_compartments():
         n_B = init[1,i]
         expected_second_order_propensity = rate_second * n_A * n_B / h
         assert propensity_output[ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments + i] == expected_second_order_propensity
+
+
+def test_run_simulation_multiple_repeats():
+    model = Reaction()
+    model.add_reaction({"A": 1}, {"B": 1}, 0.1)
+    ssa = SSA(model)
+
+    init = np.array([[10, 5],[1,2]])
+    ssa.set_conditions(
+        n_compartments=2,
+        domain_length=10.0,
+        total_time=2.0,
+        initial_conditions=init,
+        timestep=1.0,
+        Macroscopic_diffusion_rates=[0.01, 0.01]
+    )
+
+    n_repeats = 50
+    result = ssa.run_simulation(n_repeats=n_repeats)
+    assert result.shape == (len(ssa.timevector), ssa.n_species, ssa.n_compartments)
+    # Check all counts are non-negative
+    assert (result >= 0).all()
+
+def test_no_negative_counts():
+    model = Reaction()
+    model.add_reaction({"A":1}, {}, 1.0)
+    ssa = SSA(model)
+
+    init = np.array([[0,0]])
+    ssa.set_conditions(
+        n_compartments=2,
+        domain_length=2.0,
+        total_time=1.0,
+        initial_conditions=init,
+        timestep=1.0,
+        Macroscopic_diffusion_rates=[0.01]
+    )
+
+    result = ssa.run_simulation(n_repeats=5)
+    assert (result >= 0).all()

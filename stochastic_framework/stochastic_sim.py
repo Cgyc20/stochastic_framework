@@ -1,7 +1,7 @@
 import numpy as np
 from .reaction import Reaction
 from tqdm import tqdm
-
+import json
 
 class SSA:
     """
@@ -268,6 +268,49 @@ class SSA:
 
         return final_dataframe
     
+
+    def save_simulation_data(self, filename: str, simulation_result: np.ndarray):
+        """
+        Save the SSA simulation data, time vector, space, and reaction info to a single .npz file.
+
+        Parameters
+        ----------
+        filename : str
+            Full path where the file should be saved (including .npz extension).
+        simulation_result : np.ndarray
+            The simulation result to save (e.g., output from run_simulation).
+        """
+       
+
+        # Convert reaction set into JSON-serializable format
+        reaction_data = []
+        for r in self.reaction_set:
+            reaction_data.append({
+                'reactants': r.get('reactants', {}),
+                'products': r.get('products', {}),
+                'reaction_type': r.get('reaction_type', ''),
+                'reaction_rate': r.get('reaction_rate', 0.0)
+            })
+
+        # Save everything into a .npz file
+        np.savez_compressed(
+            filename,
+            simulation_result=simulation_result,
+            timevector=self.timevector,
+            space=self.space,
+            domain_length = self.domain_length,
+            total_time = self.total_time,
+            timestep = self.timestep,
+            h = self.h,
+            n_species=self.n_species,
+            n_compartments=self.n_compartments,
+            jump_rates=np.array(self.jump_rate_list),
+            reaction_data=json.dumps(reaction_data)  # Save as JSON string
+        )
+
+        print(f"Simulation data successfully saved to {filename}")
+
+        
 
     
 
