@@ -14,7 +14,8 @@ def test_compartments_correct():
         initial_conditions=np.array([[10, 5],
                                         [20, 15]]),
         timestep=0.5,
-        Macroscopic_diffusion_rates=[0.01, 0.02]
+        Macroscopic_diffusion_rates=[0.01, 0.02],
+        boundary_conditions='periodic'
     )
 
 
@@ -34,7 +35,8 @@ def test_zero_compartment_instance():
             total_time=50.0,
             initial_conditions=np.array([]),
             timestep=0.5,
-            Macroscopic_diffusion_rates=[0.01, 0.02]
+            Macroscopic_diffusion_rates=[0.01, 0.02],
+            boundary_conditions='periodic'
         )
     except ValueError as e:
         print(e)
@@ -54,7 +56,8 @@ def test_wrong_init_to_compartment_1():
             total_time=50.0,
             initial_conditions=np.array([10,5]),
             timestep=0.5,
-            Macroscopic_diffusion_rates=[0.01, 0.02]
+            Macroscopic_diffusion_rates=[0.01, 0.02],
+            boundary_conditions='periodic'
         )
     except ValueError as e:
         print(e)
@@ -72,7 +75,8 @@ def test_wrong_init_to_compartment_2():
             initial_conditions=np.array([[10.0],
                                         [10.0]]),
             timestep=0.5,
-            Macroscopic_diffusion_rates=[0.01, 0.02]
+            Macroscopic_diffusion_rates=[0.01, 0.02],
+            boundary_conditions='periodic'
         )
     except ValueError as e:
         print(e)
@@ -92,7 +96,8 @@ def test_wrong_init_to_compartment_2():
             initial_conditions=np.array([[10.0,10.0,10.0],
                                         [10.0,10.0,10.0]]),
             timestep=0.5,
-            Macroscopic_diffusion_rates=[0.01, 0.02]
+            Macroscopic_diffusion_rates=[0.01, 0.02],
+            boundary_conditions='periodic'
         )
     except ValueError as e:
         print(e)
@@ -112,7 +117,8 @@ def test_correct_initial_conditions():
         initial_conditions=np.array([[10.0,10.0, 10.0],
                                     [10.0,10.0, 10.0]]),
         timestep=0.5,
-        Macroscopic_diffusion_rates=[0.01, 0.02]
+        Macroscopic_diffusion_rates=[0.01, 0.02],
+        boundary_conditions='periodic'
     )
     
     assert (ssa_simulator.initial_conditions.shape == (2,3))
@@ -131,7 +137,8 @@ def test_negative_initial_conditions():
             initial_conditions=np.array([[10.0, -5.0],
                                         [15.0, 10.0]]),
             timestep=0.5,
-            Macroscopic_diffusion_rates=[0.01, 0.02]
+            Macroscopic_diffusion_rates=[0.01, 0.02],
+            boundary_conditions='periodic'
         )
     except ValueError as e:
         print(e)
@@ -149,7 +156,8 @@ def test_tensor_shape():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01, 0.02]
+        Macroscopic_diffusion_rates=[0.01, 0.02],
+        boundary_conditions='periodic'
     )
     
     tensor = ssa._generate_dataframes()
@@ -168,7 +176,8 @@ def test_initial_conds_is_in_tensor():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01, 0.02]
+        Macroscopic_diffusion_rates=[0.01, 0.02],
+        boundary_conditions='periodic'
     )
     
     tensor = ssa._generate_dataframes()
@@ -187,7 +196,8 @@ def test_jump_rates_are_correct():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.02, 0.04]
+        Macroscopic_diffusion_rates=[0.02, 0.04],
+        boundary_conditions='periodic'
     )
     
     expected_jump_rates = [0.02 / (ssa.h ** 2), 0.04 / (ssa.h ** 2)]
@@ -207,7 +217,8 @@ def test_raises_error_with_wrong_propensity_dim():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01, 0.02]
+        Macroscopic_diffusion_rates=[0.01, 0.02],
+        boundary_conditions='periodic'
     )
 
     wrong_propensity_vector = np.zeros(5)  # Incorrect size
@@ -234,7 +245,8 @@ def test_zero_order_propensity_diffusion():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01]
+        Macroscopic_diffusion_rates=[0.01],
+        boundary_conditions='periodic'
     )
 
     propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
@@ -264,7 +276,8 @@ def test_zero_order_propensity():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01]
+        Macroscopic_diffusion_rates=[0.01],
+        boundary_conditions='periodic'
     )
 
     propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
@@ -293,7 +306,8 @@ def test_first_order_propensity():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01, 0.1]
+        Macroscopic_diffusion_rates=[0.01, 0.1],
+        boundary_conditions='periodic'
     )
 
     propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
@@ -322,7 +336,8 @@ def test_second_order_propensity():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01, 0.1]
+        Macroscopic_diffusion_rates=[0.01, 0.1],
+        boundary_conditions='periodic'
     )
 
     propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
@@ -353,7 +368,8 @@ def test_zero_and_first():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01, 0.1]
+        Macroscopic_diffusion_rates=[0.01, 0.1],
+        boundary_conditions='periodic'
     )
 
     propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
@@ -389,7 +405,8 @@ def test_multiple_compartments():
         total_time=5.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01, 0.02]
+        Macroscopic_diffusion_rates=[0.01, 0.02],
+        boundary_conditions='periodic'
     )
 
     propensity_vector = np.zeros(ssa.n_compartments*len(ssa.species_list) + ssa.n_compartments*ssa.reaction_system.number_of_reactions)
@@ -432,7 +449,8 @@ def test_run_simulation_multiple_repeats():
         total_time=2.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01, 0.01]
+        Macroscopic_diffusion_rates=[0.01, 0.01],
+        boundary_conditions='periodic'
     )
 
     n_repeats = 50
@@ -453,7 +471,8 @@ def test_no_negative_counts():
         total_time=1.0,
         initial_conditions=init,
         timestep=1.0,
-        Macroscopic_diffusion_rates=[0.01]
+        Macroscopic_diffusion_rates=[0.01],
+        boundary_conditions='periodic'
     )
 
     result = ssa.run_simulation(n_repeats=5)

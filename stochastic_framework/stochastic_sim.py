@@ -34,7 +34,8 @@ class SSA:
                    total_time: float,
                    initial_conditions: np.ndarray,
                    timestep: float,
-                   Macroscopic_diffusion_rates: list):
+                   Macroscopic_diffusion_rates: list,
+                   boundary_conditions:str):
         
         """Set initial conditions and validate inputs."""
         
@@ -75,6 +76,15 @@ class SSA:
         for rate in Macroscopic_diffusion_rates:
             if not isinstance(rate, float):
                 raise ValueError("Each diffusion rate must be a float")
+        
+
+        possible_boundary_strings = ['periodic', 'zero-flux']
+
+        if not isinstance(boundary_conditions, str):
+            raise ValueError("Boundary conditions must be a string")
+        if boundary_conditions not in possible_boundary_strings:
+            raise ValueError(f"Boundary conditions must be one of {possible_boundary_strings}")
+        
 
         # If all checks pass, store values
         self.n_compartments = n_compartments
@@ -86,7 +96,7 @@ class SSA:
         self.timevector = np.arange(0,self.total_time, self.timestep)
         self.h = self.domain_length / self.n_compartments
         self.space = np.linspace(0,self.domain_length-self.h,self.n_compartments)
-
+        self.boundary_conditions = boundary_conditions
         self.propensity_vector = np.zeros(self.n_compartments*self.n_species + self.n_compartments*self.reaction_system.number_of_reactions)
         print("All initial conditions are valid.")
 
@@ -179,6 +189,8 @@ class SSA:
             
         return propensity_vector
     
+
+
     def _SSA_loop(self):
         """
         Run the SSA simulation.
@@ -208,18 +220,48 @@ class SSA:
             compartment_index = index % self.n_compartments
 
             # We first execute the diffusion reactions for each species of the model.
+            
             if index < self.n_species*self.n_compartments:
                 #Then we get diffusion.
                 species_index = index // self.n_compartments
                 
-                if r3 < 0.5:
-                    #Move left
-                    current_frame[species_index, compartment_index] -= 1
-                    current_frame[species_index, (compartment_index - 1)%self.n_compartments] += 1
-                else:
-                    #Move right
-                    current_frame[species_index, compartment_index] -= 1
-                    current_frame[species_index, (compartment_index + 1)%self.n_compartments] += 1
+                if self.boundary_conditions == 'periodic':
+                    if r3 < 0.5:
+                        #Move left
+                        current_frame[species_index, compartment_index] -= 1
+                        current_frame[species_index, (compartment_index - 1)%self.n_compartments] += 1
+                    else:
+                        #Move right
+                        current_frame[species_index, compartment_index] -= 1
+                        current_frame[species_index, (compartment_index + 1)%self.n_compartments] += 1
+                
+                elif self.boundary_conditions == 'zero-flux':
+
+
+                    if r3 < 0.5:
+                        #Move left
+                        if compartment_index == 0:
+                            #Reflective boundary
+                            current_frame[species_index, compartment_index] -=1 
+                            current_frame[species_index, compartment_index+1] += 1
+
+                        elif compartment_index == self.n_compartments-1:
+                            #Reflective boundary
+                            current_frame[species_index, compartment_index] -=1 
+                            current_frame[species_index, compartment_index-1] += 1
+                    
+                        else:
+                            current_frame[species_index, compartment_index] -= 1
+                            current_frame[species_index, compartment_index - 1] += 1
+                    else:
+                        #Move right
+                        if compartment_index == self.n_compartments - 1 or compartment_index == 0:
+                            #Reflective boundary
+                            pass
+                        else:
+                            current_frame[species_index, compartment_index] -= 1
+                            current_frame[species_index, compartment_index + 1] += 1
+
 
             else:
                 # we will have a reaction occuring (not diffusion)
