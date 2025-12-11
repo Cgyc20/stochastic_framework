@@ -6,16 +6,36 @@ import json
 class SSA:
     """
     Stochastic Simulation Algorithm (Gillespie) for a Reaction system.
+    
+    Tensor Ordering Convention
+    ---------------------------
+    All tensors in this class follow the convention:
+        tensor[time_index, species_index, compartment_index]
+    
+    This means:
+    - Axis 0: Time points (length = number of time steps)
+    - Axis 1: Species (length = n_species)
+    - Axis 2: Spatial compartments (length = n_compartments)
+    
+    Example:
+        To access species 2 in compartment 5 at time step 10:
+            tensor[10, 2, 5]
+        
+        To get all time points for species 0 in compartment 3:
+            tensor[:, 0, 3]
+        
+        To get spatial distribution of species 1 at time step 20:
+            tensor[20, 1, :]
     """
 
     def __init__(self, reaction_system: Reaction):
         """
+        Initialize the SSA simulator.
+        
         Parameters
         ----------
         reaction_system : Reaction
             An instance of the Reaction class containing reactions and stoichiometry.
-        initial_counts : dict
-            Dictionary of species initial counts (integers).
         """
         self.reaction_system = reaction_system
         self.species_list = reaction_system.species_list
@@ -35,9 +55,37 @@ class SSA:
                    initial_conditions: np.ndarray,
                    timestep: float,
                    Macroscopic_diffusion_rates: list,
-                   boundary_conditions:str):
+                   boundary_conditions: str):
+        """
+        Set initial conditions and validate inputs.
         
-        """Set initial conditions and validate inputs."""
+        Parameters
+        ----------
+        n_compartments : int
+            Number of spatial compartments in the domain.
+        domain_length : float
+            Total length of the spatial domain.
+        total_time : float
+            Total simulation time.
+        initial_conditions : np.ndarray
+            Initial molecule counts with shape (n_species, n_compartments).
+            - Axis 0: Species index
+            - Axis 1: Compartment index
+            Example: initial_conditions[species_i, compartment_j] gives the count 
+                     of species i in compartment j at t=0.
+        timestep : float
+            Time interval for recording simulation snapshots.
+        Macroscopic_diffusion_rates : list
+            List of diffusion rates (one per species), length must equal n_species.
+        boundary_conditions : str
+            Either 'periodic' or 'zero-flux'.
+        
+        Notes
+        -----
+        The internal tensor will be created with shape:
+            (n_timepoints, n_species, n_compartments)
+        where n_timepoints = len(np.arange(0, total_time, timestep))
+        """
         
         if not isinstance(n_compartments, int) or n_compartments <= 0:
             raise ValueError("Number of compartments must be positive")
@@ -47,12 +95,16 @@ class SSA:
         
         if not isinstance(total_time, float):
             raise ValueError("Total time must be a float")
+        
         # Validate initial_conditions type
         if not isinstance(initial_conditions, np.ndarray):
             raise ValueError("Initial conditions must be a numpy array")
 
         if initial_conditions.shape != (self.n_species, n_compartments):
-            raise ValueError(f"Initial conditions must be of shape ({self.n_species}, {n_compartments})")
+            raise ValueError(
+                f"Initial conditions must have shape (n_species, n_compartments) = "
+                f"({self.n_species}, {n_compartments}), but got {initial_conditions.shape}"
+            )
 
         # Ensure initial_conditions are non-negative integers
         if not np.issubdtype(initial_conditions.dtype, np.integer):
@@ -93,30 +145,63 @@ class SSA:
         self.initial_conditions = initial_conditions
         self.timestep = timestep
         self.Macroscopic_diffusion_rates = Macroscopic_diffusion_rates
-        self.timevector = np.arange(0,self.total_time, self.timestep)
+        self.timevector = np.arange(0, self.total_time, self.timestep)
         self.h = self.domain_length / self.n_compartments
-        self.space = np.linspace(0,self.domain_length-self.h,self.n_compartments)
+        self.space = np.linspace(0, self.domain_length - self.h, self.n_compartments)
         self.boundary_conditions = boundary_conditions
-        self.propensity_vector = np.zeros(self.n_compartments*self.n_species + self.n_compartments*self.reaction_system.number_of_reactions)
+        self.propensity_vector = np.zeros(
+            self.n_compartments * self.n_species + 
+            self.n_compartments * self.reaction_system.number_of_reactions
+        )
         print("All initial conditions are valid.")
-
 
         initial_tensor = self._generate_dataframes()
 
-
-        self.jump_rate_list = [macroscopic_rate/(self.h**2) for macroscopic_rate in self.Macroscopic_diffusion_rates]
-
+        self.jump_rate_list = [
+            macroscopic_rate / (self.h ** 2) 
+            for macroscopic_rate in self.Macroscopic_diffusion_rates
+        ]
 
 
     def _generate_dataframes(self):
         """
-        Generates the dataframes for the system. It is going to be a three dimensional tensor.
-        Dimensions = (number_of_timepoints, n_compartments, number_of_species)
+        Generate the result tensor for storing simulation data.
+        
+        Returns
+        -------
+        tensor : np.ndarray
+            3D array with shape (n_timepoints, n_species, n_compartments).
+            
+            Dimension ordering:
+            - Axis 0 (rows): Time points, length = len(self.timevector)
+            - Axis 1 (depth): Species, length = self.n_species
+            - Axis 2 (cols): Spatial compartments, length = self.n_compartments
+            
+            Access pattern:
+                tensor[time_idx, species_idx, compartment_idx]
+            
+            Example usage:
+                # Get concentration of species 0 across all compartments at time 5
+                spatial_profile = tensor[5, 0, :]
+                
+                # Get time series of species 1 in compartment 10
+                time_series = tensor[:, 1, 10]
+                
+                # Get all species counts in compartment 0 at time 0
+                initial_state_comp0 = tensor[0, :, 0]
+        
+        Notes
+        -----
+        The tensor is initialized with zeros and dtype=int. The first time point 
+        (tensor[0, :, :]) is filled with self.initial_conditions.
         """
 
-        tensor = np.zeros((len(self.timevector),  self.n_species, self.n_compartments), dtype = int)
+        tensor = np.zeros(
+            (len(self.timevector), self.n_species, self.n_compartments), 
+            dtype=int
+        )
 
-        tensor[0,:,:] = self.initial_conditions
+        tensor[0, :, :] = self.initial_conditions
         self.tensor = tensor
         return tensor
     
@@ -124,39 +209,60 @@ class SSA:
                                 dataframe: np.ndarray,
                                 propensity_vector: np.ndarray):
         """
-        Calculates the propensity_vector functions for each reaction in each compartment.
-        This will also take into account the diffusion propensity_vector. 
+        Calculate propensity functions for all reactions and diffusion events.
         
-        Parameters:
-         Dataframe: A np.ndarray dataframe of shape (self.n_compartments, number_of_species)
+        Parameters
+        ----------
+        dataframe : np.ndarray
+            Current state with shape (n_species, n_compartments).
+            - Axis 0: Species index
+            - Axis 1: Compartment index
+            Access: dataframe[species_idx, compartment_idx]
         
-        propensity_vector: A np.ndarray array of shape (self.n_compartments*number_of_species + self.n_compartments*number_of_reactions,)
-
-        Returns: The updated Propensity function:
+        propensity_vector : np.ndarray
+            1D array to store all propensities, with shape:
+            (n_compartments * n_species + n_compartments * number_of_reactions,)
+            
+            Structure:
+            - Indices [0 : n_compartments*n_species] : Diffusion propensities
+              Ordered as: [species_0_comp_0, species_0_comp_1, ..., 
+                          species_1_comp_0, species_1_comp_1, ...]
+            - Indices [n_compartments*n_species : end] : Reaction propensities
+              Ordered as: [reaction_0_comp_0, reaction_0_comp_1, ...,
+                          reaction_1_comp_0, reaction_1_comp_1, ...]
         
+        Returns
+        -------
+        propensity_vector : np.ndarray
+            Updated propensity vector with calculated values.
+        
+        Notes
+        -----
+        The propensity for diffusion of species i from compartment j is stored at:
+            propensity_vector[i * n_compartments + j]
+        
+        The propensity for reaction r in compartment j is stored at:
+            propensity_vector[n_species * n_compartments + r * n_compartments + j]
         """
 
-        assert dataframe.shape == (self.n_species, self.n_compartments), "Dataframe shape is incorrect"
-        assert propensity_vector.shape == (self.n_compartments*self.n_species + self.n_compartments*self.reaction_system.number_of_reactions,), "Propensity vector shape is incorrect"
-        #assert that the propensity elements are floats
-
+        assert dataframe.shape == (self.n_species, self.n_compartments), \
+            f"Dataframe shape must be (n_species, n_compartments) = " \
+            f"({self.n_species}, {self.n_compartments}), got {dataframe.shape}"
         
-        #First we will do the Movement (diffusion propensities)
-
+        assert propensity_vector.shape == (
+            self.n_compartments * self.n_species + 
+            self.n_compartments * self.reaction_system.number_of_reactions,
+        ), "Propensity vector shape is incorrect"
+        
+        # Calculate diffusion propensities
         for species_index in range(self.n_species):
             corresponding_jump_rate = self.jump_rate_list[species_index]
+            start_idx = species_index * self.n_compartments
+            end_idx = (species_index + 1) * self.n_compartments
+            propensity_vector[start_idx:end_idx] = \
+                corresponding_jump_rate * dataframe[species_index, :] * 2.0
 
-            propensity_vector[species_index*self.n_compartments:(species_index+1)*self.n_compartments] = corresponding_jump_rate * dataframe[species_index, :]*2.0
-
-        # Now we are going to run the reactions, from the reaction list. Note that we have self.number_of_reactions total reactions so we need to iterate through this list.
-
-        #Note that for this we are going to fill up the propensities vectors from
-        #Propensity[self.n_compartments*number_of_species: self.n_compartments*number_of_species+ self.n_compartments*number_of_reactions, ]
-    
-        # print("Species_index list", self.species_index)
-
-        # print("Species list:", self.species_list)
-        
+        # Calculate reaction propensities
         for i, reaction in enumerate(self.reaction_set):
             start = self.n_compartments * self.n_species + i * self.n_compartments
             end = start + self.n_compartments
@@ -169,31 +275,51 @@ class SSA:
                 # Constant production
                 propensity_vector[start:end] = rate * self.h
 
-            
             elif reaction_type == 'first_order':
                 idx = reactant_indices[0]
-                propensity_vector[start:end] = rate*dataframe[idx,:]
+                propensity_vector[start:end] = rate * dataframe[idx, :]
 
             elif reaction_type == 'second_order':
-                if len(reactant_indices) == 1: #Then its a single species reaction.
-                    
+                if len(reactant_indices) == 1:
+                    # Homodimerization: A + A -> products
                     idx = reactant_indices[0]
-                    propensity_vector[start:end] = rate*dataframe[idx,:]*(dataframe[idx,:]-1)/self.h
-
+                    propensity_vector[start:end] = \
+                        rate * dataframe[idx, :] * (dataframe[idx, :] - 1) / self.h
                 else:
-                    #A + B
+                    # Heterodimerization: A + B -> products
                     idx1, idx2 = reactant_indices
-                    propensity_vector[start:end] = rate*dataframe[idx1, :]*dataframe[idx2,:]/self.h
+                    propensity_vector[start:end] = \
+                        rate * dataframe[idx1, :] * dataframe[idx2, :] / self.h
             else:
                 raise ValueError(f"Unknown reaction type {reaction_type}")
             
         return propensity_vector
     
 
-
     def _SSA_loop(self):
         """
-        Run the SSA simulation.
+        Execute the main Gillespie SSA loop.
+        
+        Returns
+        -------
+        tensor : np.ndarray
+            Simulation results with shape (n_timepoints, n_species, n_compartments).
+            
+            Dimension ordering:
+            - Axis 0: Time (indexed by time step)
+            - Axis 1: Species (indexed by species number)
+            - Axis 2: Space (indexed by compartment number)
+            
+            Access: tensor[time_idx, species_idx, compartment_idx]
+        
+        Notes
+        -----
+        The algorithm:
+        1. Calculates propensities for all possible events
+        2. Randomly selects time until next event (tau)
+        3. Randomly selects which event occurs
+        4. Updates system state
+        5. Records state at regular timestep intervals
         """
         
         t = 0.0
@@ -201,7 +327,7 @@ class SSA:
 
         current_frame = self.initial_conditions.copy()
 
-        while t<self.total_time:
+        while t < self.total_time:
 
             propensity_vector = self._propensity_calculation(
                 dataframe=current_frame,
@@ -210,69 +336,65 @@ class SSA:
 
             alpha0 = np.sum(propensity_vector)
             if alpha0 == 0:
-                #No further action
+                # No further action possible
                 break
 
             r1, r2, r3 = np.random.rand(3)
-            tau = (1/alpha0)*np.log(1/r1)
+            tau = (1 / alpha0) * np.log(1 / r1)
             alpha_cum = np.cumsum(propensity_vector)
-            index = np.searchsorted(alpha_cum, r2*alpha0)
+            index = np.searchsorted(alpha_cum, r2 * alpha0)
             compartment_index = index % self.n_compartments
 
-            # We first execute the diffusion reactions for each species of the model.
-            
-            if index < self.n_species*self.n_compartments:
-                #Then we get diffusion.
+            # Execute diffusion or reaction based on selected index
+            if index < self.n_species * self.n_compartments:
+                # Diffusion event
                 species_index = index // self.n_compartments
                 
                 if self.boundary_conditions == 'periodic':
                     if r3 < 0.5:
-                        #Move left
+                        # Move left
                         current_frame[species_index, compartment_index] -= 1
-                        current_frame[species_index, (compartment_index - 1)%self.n_compartments] += 1
+                        current_frame[species_index, 
+                                    (compartment_index - 1) % self.n_compartments] += 1
                     else:
-                        #Move right
+                        # Move right
                         current_frame[species_index, compartment_index] -= 1
-                        current_frame[species_index, (compartment_index + 1)%self.n_compartments] += 1
+                        current_frame[species_index, 
+                                    (compartment_index + 1) % self.n_compartments] += 1
                 
                 elif self.boundary_conditions == 'zero-flux':
-
-
                     if r3 < 0.5:
-                        #Move left
+                        # Move left
                         if compartment_index == 0:
-                            #Reflective boundary
-                            current_frame[species_index, compartment_index] -=1 
-                            current_frame[species_index, compartment_index+1] += 1
-
-                        elif compartment_index == self.n_compartments-1:
-                            #Reflective boundary
-                            current_frame[species_index, compartment_index] -=1 
-                            current_frame[species_index, compartment_index-1] += 1
-                    
+                            # Reflective boundary - move right instead
+                            current_frame[species_index, compartment_index] -= 1 
+                            current_frame[species_index, compartment_index + 1] += 1
+                        elif compartment_index == self.n_compartments - 1:
+                            # Reflective boundary - move left instead
+                            current_frame[species_index, compartment_index] -= 1 
+                            current_frame[species_index, compartment_index - 1] += 1
                         else:
                             current_frame[species_index, compartment_index] -= 1
                             current_frame[species_index, compartment_index - 1] += 1
                     else:
-                        #Move right
+                        # Move right
                         if compartment_index == self.n_compartments - 1 or compartment_index == 0:
-                            #Reflective boundary
+                            # Reflective boundary - no movement
                             pass
                         else:
                             current_frame[species_index, compartment_index] -= 1
                             current_frame[species_index, compartment_index + 1] += 1
 
-
             else:
-                # we will have a reaction occuring (not diffusion)
-
-                reaction_index = (index - self.n_species*self.n_compartments)//self.n_compartments
-
+                # Reaction event
+                reaction_index = (index - self.n_species * self.n_compartments) // self.n_compartments
                 stoichiometric_update = self.stoichiometric_matrix[:, reaction_index]
                 current_frame[:, compartment_index] += stoichiometric_update
+            
             old_time = t
             t += tau
 
+            # Record state at regular intervals
             ind_before = int(old_time / self.timestep)
             ind_after = int(t / self.timestep)
 
@@ -283,47 +405,128 @@ class SSA:
         return self.tensor
     
 
-    def run_simulation(self, 
-                       n_repeats: int):
-        
+    def run_simulation(self, n_repeats: int):
         """
-        Run the SSA simulation multiple times.
-        Parameters:
+        Run multiple SSA simulations and average the results.
+        
+        Parameters
+        ----------
         n_repeats : int
-            Number of simulation repeats.
-        Returns:
+            Number of independent simulation runs to average.
+        
+        Returns
         -------
         results : np.ndarray
-            Array of shape (n_repeats, number_of_timepoints, n_species, n_compartments)
-            containing the simulation results.
+            Averaged simulation results with shape (n_timepoints, n_species, n_compartments).
+            
+            Dimension ordering (CRITICAL):
+            - Axis 0: Time points (length = number of time steps)
+            - Axis 1: Species (length = n_species)  
+            - Axis 2: Spatial compartments (length = n_compartments)
+            
+            Access pattern:
+                results[time_idx, species_idx, compartment_idx]
+            
+            Examples:
+                # Time evolution of species 0 in compartment 5
+                time_series = results[:, 0, 5]
+                
+                # Spatial distribution of species 2 at final time
+                final_spatial = results[-1, 2, :]
+                
+                # All species in compartment 0 at time index 100
+                snapshot = results[100, :, 0]
+                
+                # Average over all compartments for species 1
+                spatially_averaged = results[:, 1, :].mean(axis=1)
+        
+        Notes
+        -----
+        Each simulation is run independently and the molecular counts are averaged
+        across all repeats. The averaging is done element-wise, so:
+            results[t, s, c] = mean over all repeats of counts at (t, s, c)
         """
 
-        summed_dataframe = np.zeros((len(self.timevector), self.n_species, self.n_compartments), dtype=int)
-        final_dataframe = np.zeros((len(self.timevector), self.n_species, self.n_compartments), dtype=float)
+        summed_dataframe = np.zeros(
+            (len(self.timevector), self.n_species, self.n_compartments), 
+            dtype=int
+        )
+        final_dataframe = np.zeros(
+            (len(self.timevector), self.n_species, self.n_compartments), 
+            dtype=float
+        )
 
-        for _ in tqdm(range(n_repeats)):
+        for _ in tqdm(range(n_repeats), desc="Running simulations"):
             self._generate_dataframes()  # Reset tensor for each repeat
             summed_dataframe += self._SSA_loop()
 
-        
-        final_dataframe += summed_dataframe / n_repeats
+        final_dataframe = summed_dataframe / n_repeats
 
         return final_dataframe
     
 
     def save_simulation_data(self, filename: str, simulation_result: np.ndarray):
         """
-        Save the SSA simulation data, time vector, space, and reaction info to a single .npz file.
+        Save SSA simulation data and metadata to a compressed .npz file.
 
         Parameters
         ----------
         filename : str
-            Full path where the file should be saved (including .npz extension).
+            Full path where the file should be saved (must include .npz extension).
         simulation_result : np.ndarray
-            The simulation result to save (e.g., output from run_simulation).
+            Simulation result from run_simulation() with shape 
+            (n_timepoints, n_species, n_compartments).
+            
+            IMPORTANT: Tensor ordering in saved file:
+            - Axis 0: Time
+            - Axis 1: Species
+            - Axis 2: Compartments
+            
+            When loading the file:
+                data = np.load('filename.npz')
+                results = data['simulation_result']
+                # Access as: results[time_idx, species_idx, compartment_idx]
+        
+        Saved Arrays
+        ------------
+        simulation_result : np.ndarray
+            Main results (n_timepoints, n_species, n_compartments)
+        timevector : np.ndarray
+            Time points corresponding to axis 0 of simulation_result
+        space : np.ndarray  
+            Spatial coordinates corresponding to axis 2 of simulation_result
+        domain_length : float
+            Total length of spatial domain
+        total_time : float
+            Total simulation time
+        timestep : float
+            Time interval between recorded points
+        h : float
+            Compartment width (domain_length / n_compartments)
+        n_species : int
+            Number of species (length of axis 1)
+        n_compartments : int
+            Number of compartments (length of axis 2)
+        jump_rates : np.ndarray
+            Microscopic jump rates for each species
+        reaction_data : str
+            JSON string containing reaction information
+        
+        Example
+        -------
+        >>> # Save data
+        >>> ssa.save_simulation_data('results.npz', results)
+        >>> 
+        >>> # Load data
+        >>> data = np.load('results.npz')
+        >>> results = data['simulation_result']  # shape: (time, species, compartments)
+        >>> times = data['timevector']
+        >>> positions = data['space']
+        >>> 
+        >>> # Plot species 0 at final time
+        >>> plt.plot(positions, results[-1, 0, :])
         """
        
-
         # Convert reaction set into JSON-serializable format
         reaction_data = []
         for r in self.reaction_set:
@@ -340,30 +543,17 @@ class SSA:
             simulation_result=simulation_result,
             timevector=self.timevector,
             space=self.space,
-            domain_length = self.domain_length,
-            total_time = self.total_time,
-            timestep = self.timestep,
-            h = self.h,
+            domain_length=self.domain_length,
+            total_time=self.total_time,
+            timestep=self.timestep,
+            h=self.h,
             n_species=self.n_species,
             n_compartments=self.n_compartments,
             jump_rates=np.array(self.jump_rate_list),
-            reaction_data=json.dumps(reaction_data)  # Save as JSON string
+            reaction_data=json.dumps(reaction_data)
         )
 
         print(f"Simulation data successfully saved to {filename}")
-
-        
-
-    
-
-
-
-
-
-         
-    
-
-        
-        
-        
-
+        print(f"Tensor shape: {simulation_result.shape} = "
+              f"(time={len(self.timevector)}, species={self.n_species}, "
+              f"compartments={self.n_compartments})")
