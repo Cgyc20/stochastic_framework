@@ -1,6 +1,3 @@
-Ah, got it! You want the README to just show **the reaction rates as they are used in the SSA**, without worrying about dividing by compartment size or Ω. Here’s a revised version:
-
----
 
 # Stochastic Framework
 
@@ -80,8 +77,3 @@ ssa.save_simulation_data("data/SSA_data.npz", simulation_result=average_output)
 * **Diffusion**: Each species can have its own diffusion rate between compartments.
 * **Analysis and plotting**: The saved `.npz` file contains the simulation tensor, time vector, space vector, and reaction metadata. You can animate or integrate total mass over time.
 
----
-
-This version keeps it simple and matches exactly how your SSA expects rates.
-
-If you want, I can also **add a tiny “how to plot concentrations or normalize the domain” section”** in one paragraph, so the README is fully self-contained. Do you want me to do that?
