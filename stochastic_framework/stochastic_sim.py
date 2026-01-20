@@ -557,3 +557,116 @@ class SSA:
         print(f"Tensor shape: {simulation_result.shape} = "
               f"(time={len(self.timevector)}, species={self.n_species}, "
               f"compartments={self.n_compartments})")
+        
+    def run_final_frames(self, n_repeats: int, *, progress: bool = True) -> np.ndarray:
+        """
+        Run multiple SSA simulations and return ONLY the final frame from each repeat.
+
+        Parameters
+        ----------
+        n_repeats : int
+            Number of independent simulation runs.
+        progress : bool
+            If True, show a tqdm progress bar (requires tqdm).
+
+        Returns
+        -------
+        final_frames : np.ndarray
+            Array of shape (n_repeats, n_species, n_compartments) containing the final
+            state from each repeat.
+
+            Dimension ordering:
+            - Axis 0: Repeat index
+            - Axis 1: Species index
+            - Axis 2: Compartment index
+
+            Access pattern:
+                final_frames[repeat_idx, species_idx, compartment_idx]
+        """
+        if n_repeats <= 0:
+            raise ValueError("n_repeats must be > 0")
+
+        final_frames = np.zeros((n_repeats, self.n_species, self.n_compartments), dtype=int)
+
+        iterator = range(n_repeats)
+        if progress:
+            try:
+                iterator = tqdm(iterator, desc="Running simulations (final only)")
+            except Exception:
+                # tqdm not available or misconfigured; silently fall back
+                iterator = range(n_repeats)
+
+        for r in iterator:
+            self._generate_dataframes()  # Reset tensor for each repeat
+            tensor = self._SSA_loop()
+            final_frames[r, :, :] = tensor[-1, :, :]
+
+        return final_frames
+
+    def save_final_frames(self, filename: str, final_frames: np.ndarray):
+        """
+        Save SSA final-frame ensemble data and metadata to a compressed .npz file.
+
+        Parameters
+        ----------
+        filename : str
+            Full path where the file should be saved (must include .npz extension).
+        final_frames : np.ndarray
+            Output of run_final_frames() with shape (n_repeats, n_species, n_compartments).
+
+        Saved Arrays
+        ------------
+        final_frames : np.ndarray
+            Shape (n_repeats, n_species, n_compartments)
+        time_final : float
+            Final recorded time (self.timevector[-1])
+        space : np.ndarray
+            Spatial coordinates (length n_compartments)
+        domain_length : float
+        total_time : float
+        timestep : float
+        h : float
+        n_species : int
+        n_compartments : int
+        jump_rates : np.ndarray
+        reaction_data : str
+            JSON string containing reaction information
+        """
+        if not isinstance(final_frames, np.ndarray):
+            raise ValueError("final_frames must be a numpy array")
+        if final_frames.shape[1:] != (self.n_species, self.n_compartments):
+            raise ValueError(
+                f"final_frames must have shape (n_repeats, {self.n_species}, {self.n_compartments}), "
+                f"but got {final_frames.shape}"
+            )
+
+        # Convert reaction set into JSON-serializable format
+        reaction_data = []
+        for r in self.reaction_set:
+            reaction_data.append({
+                'reactants': r.get('reactants', {}),
+                'products': r.get('products', {}),
+                'reaction_type': r.get('reaction_type', ''),
+                'reaction_rate': r.get('reaction_rate', 0.0)
+            })
+
+        np.savez_compressed(
+            filename,
+            final_frames=final_frames,
+            time_final=float(self.timevector[-1]) if len(self.timevector) else float(self.total_time),
+            space=self.space,
+            domain_length=self.domain_length,
+            total_time=self.total_time,
+            timestep=self.timestep,
+            h=self.h,
+            n_species=self.n_species,
+            n_compartments=self.n_compartments,
+            jump_rates=np.array(self.jump_rate_list),
+            reaction_data=json.dumps(reaction_data),
+        )
+
+        print(f"Final-frame ensemble successfully saved to {filename}")
+        print(f"Final_frames shape: {final_frames.shape} = "
+              f"(repeats={final_frames.shape[0]}, species={self.n_species}, "
+              f"compartments={self.n_compartments})")
+
