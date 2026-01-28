@@ -74,7 +74,8 @@ def main():
         total_time=40.0,
         initial_conditions=initial_conditions,
         timestep=0.1,
-        Macroscopic_diffusion_rates=[rescaled_Du, rescaled_Dv]
+        Macroscopic_diffusion_rates=[rescaled_Du, rescaled_Dv],
+        boundary_conditions='periodic'
     )
 
     SSA_class._propensity_calculation(
@@ -82,7 +83,7 @@ def main():
         propensity_vector=np.zeros(SSA_class.n_compartments*len(SSA_class.species_list) + SSA_class.n_compartments*SSA_class.reaction_system.number_of_reactions)
     )
 
-    average_output = SSA_class.run_simulation(n_repeats=5)
+    average_output = SSA_class.run_simulation(n_repeats=5, parallel=True)
 
     SSA_class.save_simulation_data(
         filename="/Users/charliecameron/CodingHub/PhD/Y2_code/stochastic_framework/data/SSA_data.npz",

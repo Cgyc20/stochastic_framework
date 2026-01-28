@@ -411,7 +411,7 @@ class SSA:
     
 
 
-        def _resolve_n_jobs(self, n_jobs: int, max_n_jobs: int | None) -> int:
+    def _resolve_n_jobs(self, n_jobs: int, max_n_jobs: int | None) -> int:
         """
         Resolve requested n_jobs against cpu_count and optional max_n_jobs.
         joblib convention: n_jobs=-1 means "all cores".
@@ -513,6 +513,7 @@ class SSA:
         # Parallel branch
         n_jobs_eff = self._resolve_n_jobs(n_jobs=n_jobs, max_n_jobs=max_n_jobs)
 
+        print(f"[SSA] Running in parallel with {n_jobs_eff} process(es)")
         tensors = Parallel(n_jobs=n_jobs_eff, backend="loky")(
             delayed(self._run_one_repeat)(None if seeds is None else seeds[i])
             for i in range(n_repeats)
