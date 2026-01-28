@@ -472,54 +472,80 @@ class SSA:
 
    
     def run_simulation(
-        self,
-        n_repeats: int,
-        *,
-        parallel: bool = False,
-        n_jobs: int = -1,
-        max_n_jobs: int | None = None,
-        progress: bool = True,
-        base_seed: int | None = None,
-    ) -> np.ndarray:
+    self,
+    n_repeats: int,
+    *,
+    parallel: bool = False,
+    n_jobs: int = -1,
+    max_n_jobs: int | None = None,
+    progress: bool = True,
+    base_seed: int | None = None,
+) -> np.ndarray:
         """
         Run multiple SSA simulations and average the results.
 
         If parallel=True, repeats are distributed across processes using joblib.
+        If progress=True, a tqdm progress bar is shown (works in both serial + parallel).
         """
         if n_repeats <= 0:
             raise ValueError("n_repeats must be > 0")
 
-        # Seeds: make each repeat deterministic if base_seed provided
         seeds = None
         if base_seed is not None:
             seeds = [int(base_seed) + i for i in range(n_repeats)]
 
+        # -----------------------
+        # Serial (tqdm works normally)
+        # -----------------------
         if not parallel:
             summed = np.zeros((len(self.timevector), self.n_species, self.n_compartments), dtype=np.int64)
 
             iterator = range(n_repeats)
             if progress:
-                iterator = tqdm(iterator, desc="Running simulations")
+                iterator = tqdm(iterator, total=n_repeats, desc="Running SSA repeats", unit="run", dynamic_ncols=True)
 
             for i in iterator:
                 seed = None if seeds is None else seeds[i]
-                self._generate_dataframes()  # reset tensor
+                self._generate_dataframes()
                 if seed is not None:
                     np.random.seed(seed)
                 summed += self._SSA_loop()
 
             return (summed / n_repeats).astype(float)
 
-        # Parallel branch
+        # -----------------------
+        # Parallel (stream results -> tqdm works)
+        # -----------------------
         n_jobs_eff = self._resolve_n_jobs(n_jobs=n_jobs, max_n_jobs=max_n_jobs)
-
         print(f"[SSA] Running in parallel with {n_jobs_eff} process(es)")
-        tensors = Parallel(n_jobs=n_jobs_eff, backend="loky")(
-            delayed(self._run_one_repeat)(None if seeds is None else seeds[i])
-            for i in range(n_repeats)
-        )
 
-        summed = np.sum(np.asarray(tensors, dtype=np.int64), axis=0)
+        def one(i: int):
+            seed = None if seeds is None else seeds[i]
+            tensor = self._run_one_repeat(seed=seed)  # shape (T, S, K)
+            return tensor.astype(np.int64, copy=False)
+
+        tasks = (delayed(one)(i) for i in range(n_repeats))
+
+        # stream results as they finish
+        results_iter = Parallel(n_jobs=n_jobs_eff, backend="loky", return_as="generator")(tasks)
+
+        if progress:
+            try:
+                from tqdm.auto import tqdm as tqdm_auto
+                results_iter = tqdm_auto(
+                    results_iter,
+                    total=n_repeats,
+                    desc="Running SSA repeats",
+                    unit="run",
+                    dynamic_ncols=True,
+                )
+            except Exception:
+                pass
+
+        summed = np.zeros((len(self.timevector), self.n_species, self.n_compartments), dtype=np.int64)
+        for tensor in results_iter:
+            summed += tensor
+
         return (summed / n_repeats).astype(float)
 
 
