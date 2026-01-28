@@ -2,6 +2,11 @@ import numpy as np
 from .reaction import Reaction
 from tqdm import tqdm
 import json
+import os
+import contextlib
+import io
+from joblib import Parallel, delayed
+
 
 class SSA:
     """
@@ -405,65 +410,117 @@ class SSA:
         return self.tensor
     
 
-    def run_simulation(self, n_repeats: int):
+
+        def _resolve_n_jobs(self, n_jobs: int, max_n_jobs: int | None) -> int:
+        """
+        Resolve requested n_jobs against cpu_count and optional max_n_jobs.
+        joblib convention: n_jobs=-1 means "all cores".
+        """
+        cpu = os.cpu_count() or 1
+
+        if n_jobs is None:
+            n_jobs_eff = 1
+        elif n_jobs == -1:
+            n_jobs_eff = cpu
+        else:
+            n_jobs_eff = int(n_jobs)
+
+        if n_jobs_eff <= 0:
+            raise ValueError("n_jobs must be a positive int, or -1 for all cores")
+
+        if max_n_jobs is not None:
+            n_jobs_eff = min(n_jobs_eff, int(max_n_jobs))
+
+        return min(n_jobs_eff, cpu)
+
+    def _run_one_repeat(self, seed: int | None = None) -> np.ndarray:
+        """
+        Worker-safe single repeat: creates a fresh SSA instance (no shared mutable state),
+        copies conditions, runs one SSA loop, returns full tensor.
+        """
+        # Fresh instance to avoid shared mutable state across processes
+        sim = SSA(self.reaction_system)
+
+        # Re-apply conditions (validation included). Silence the print inside set_conditions.
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            sim.set_conditions(
+                n_compartments=self.n_compartments,
+                domain_length=self.domain_length,
+                total_time=self.total_time,
+                initial_conditions=self.initial_conditions.copy(),
+                timestep=self.timestep,
+                Macroscopic_diffusion_rates=list(self.Macroscopic_diffusion_rates),
+                boundary_conditions=self.boundary_conditions,
+            )
+
+        if seed is not None:
+            np.random.seed(seed)
+
+        sim._generate_dataframes()
+        return sim._SSA_loop()
+
+    def _run_one_repeat_final(self, seed: int | None = None) -> np.ndarray:
+        """
+        Worker-safe single repeat: returns ONLY final frame (n_species, n_compartments).
+        """
+        tensor = self._run_one_repeat(seed=seed)
+        return tensor[-1, :, :].copy()
+
+
+
+
+   
+    def run_simulation(
+        self,
+        n_repeats: int,
+        *,
+        parallel: bool = False,
+        n_jobs: int = -1,
+        max_n_jobs: int | None = None,
+        progress: bool = True,
+        base_seed: int | None = None,
+    ) -> np.ndarray:
         """
         Run multiple SSA simulations and average the results.
-        
-        Parameters
-        ----------
-        n_repeats : int
-            Number of independent simulation runs to average.
-        
-        Returns
-        -------
-        results : np.ndarray
-            Averaged simulation results with shape (n_timepoints, n_species, n_compartments).
-            
-            Dimension ordering (CRITICAL):
-            - Axis 0: Time points (length = number of time steps)
-            - Axis 1: Species (length = n_species)  
-            - Axis 2: Spatial compartments (length = n_compartments)
-            
-            Access pattern:
-                results[time_idx, species_idx, compartment_idx]
-            
-            Examples:
-                # Time evolution of species 0 in compartment 5
-                time_series = results[:, 0, 5]
-                
-                # Spatial distribution of species 2 at final time
-                final_spatial = results[-1, 2, :]
-                
-                # All species in compartment 0 at time index 100
-                snapshot = results[100, :, 0]
-                
-                # Average over all compartments for species 1
-                spatially_averaged = results[:, 1, :].mean(axis=1)
-        
-        Notes
-        -----
-        Each simulation is run independently and the molecular counts are averaged
-        across all repeats. The averaging is done element-wise, so:
-            results[t, s, c] = mean over all repeats of counts at (t, s, c)
+
+        If parallel=True, repeats are distributed across processes using joblib.
         """
+        if n_repeats <= 0:
+            raise ValueError("n_repeats must be > 0")
 
-        summed_dataframe = np.zeros(
-            (len(self.timevector), self.n_species, self.n_compartments), 
-            dtype=int
+        # Seeds: make each repeat deterministic if base_seed provided
+        seeds = None
+        if base_seed is not None:
+            seeds = [int(base_seed) + i for i in range(n_repeats)]
+
+        if not parallel:
+            summed = np.zeros((len(self.timevector), self.n_species, self.n_compartments), dtype=np.int64)
+
+            iterator = range(n_repeats)
+            if progress:
+                iterator = tqdm(iterator, desc="Running simulations")
+
+            for i in iterator:
+                seed = None if seeds is None else seeds[i]
+                self._generate_dataframes()  # reset tensor
+                if seed is not None:
+                    np.random.seed(seed)
+                summed += self._SSA_loop()
+
+            return (summed / n_repeats).astype(float)
+
+        # Parallel branch
+        n_jobs_eff = self._resolve_n_jobs(n_jobs=n_jobs, max_n_jobs=max_n_jobs)
+
+        tensors = Parallel(n_jobs=n_jobs_eff, backend="loky")(
+            delayed(self._run_one_repeat)(None if seeds is None else seeds[i])
+            for i in range(n_repeats)
         )
-        final_dataframe = np.zeros(
-            (len(self.timevector), self.n_species, self.n_compartments), 
-            dtype=float
-        )
 
-        for _ in tqdm(range(n_repeats), desc="Running simulations"):
-            self._generate_dataframes()  # Reset tensor for each repeat
-            summed_dataframe += self._SSA_loop()
+        summed = np.sum(np.asarray(tensors, dtype=np.int64), axis=0)
+        return (summed / n_repeats).astype(float)
 
-        final_dataframe = summed_dataframe / n_repeats
-
-        return final_dataframe
-    
 
     def save_simulation_data(self, filename: str, simulation_result: np.ndarray):
         """
@@ -558,7 +615,54 @@ class SSA:
               f"(time={len(self.timevector)}, species={self.n_species}, "
               f"compartments={self.n_compartments})")
         
-    def run_final_frames(self, n_repeats: int, *, progress: bool = True) -> np.ndarray:
+   
+    def run_final_frames(
+        self,
+        n_repeats: int,
+        *,
+        progress: bool = True,
+        parallel: bool = False,
+        n_jobs: int = -1,
+        max_n_jobs: int | None = None,
+        base_seed: int | None = None,
+    ) -> np.ndarray:
+        """
+        Run multiple SSA simulations and return ONLY the final frame from each repeat.
+        """
+        if n_repeats <= 0:
+            raise ValueError("n_repeats must be > 0")
+
+        seeds = None
+        if base_seed is not None:
+            seeds = [int(base_seed) + i for i in range(n_repeats)]
+
+        if not parallel:
+            final_frames = np.zeros((n_repeats, self.n_species, self.n_compartments), dtype=int)
+
+            iterator = range(n_repeats)
+            if progress:
+                iterator = tqdm(iterator, desc="Running simulations (final only)")
+
+            for i in iterator:
+                seed = None if seeds is None else seeds[i]
+                self._generate_dataframes()
+                if seed is not None:
+                    np.random.seed(seed)
+                tensor = self._SSA_loop()
+                final_frames[i, :, :] = tensor[-1, :, :]
+
+            return final_frames
+
+        # Parallel branch
+        n_jobs_eff = self._resolve_n_jobs(n_jobs=n_jobs, max_n_jobs=max_n_jobs)
+
+        frames = Parallel(n_jobs=n_jobs_eff, backend="loky")(
+            delayed(self._run_one_repeat_final)(None if seeds is None else seeds[i])
+            for i in range(n_repeats)
+        )
+
+        return np.asarray(frames, dtype=int)
+
         """
         Run multiple SSA simulations and return ONLY the final frame from each repeat.
 
