@@ -801,3 +801,85 @@ class SSA:
               f"(repeats={final_frames.shape[0]}, species={self.n_species}, "
               f"compartments={self.n_compartments})")
 
+    def run_trajectories(
+                        self,
+                        n_repeats: int,
+                        *,
+                        parallel: bool = False,
+                        n_jobs: int = -1,
+                        max_n_jobs: int | None = None,
+                        progress: bool = True,
+                        base_seed: int | None = None,
+                        dtype=np.int64,
+                    ) -> np.ndarray:
+        """
+        Run multiple SSA simulations and return the FULL trajectory tensor from each repeat.
+
+        Returns
+        -------
+        trajectories : np.ndarray
+            Shape (n_repeats, n_timepoints, n_species, n_compartments)
+            Ordering: trajectories[repeat, time, species, compartment]
+        """
+        if n_repeats <= 0:
+            raise ValueError("n_repeats must be > 0")
+
+        seeds = None
+        if base_seed is not None:
+            seeds = [int(base_seed) + i for i in range(n_repeats)]
+
+        T = len(self.timevector)
+        S = self.n_species
+        K = self.n_compartments
+
+        # -----------------------
+        # Serial
+        # -----------------------
+        if not parallel:
+            trajectories = np.empty((n_repeats, T, S, K), dtype=dtype)
+
+            iterator = range(n_repeats)
+            if progress:
+                iterator = tqdm(iterator, total=n_repeats, desc="Running SSA trajectories", unit="run", dynamic_ncols=True)
+
+            for i in iterator:
+                seed = None if seeds is None else seeds[i]
+                self._generate_dataframes()
+                if seed is not None:
+                    np.random.seed(seed)
+                trajectories[i] = self._SSA_loop().astype(dtype, copy=False)
+
+            return trajectories
+
+        # -----------------------
+        # Parallel
+        # -----------------------
+        n_jobs_eff = self._resolve_n_jobs(n_jobs=n_jobs, max_n_jobs=max_n_jobs)
+        print(f"[SSA] Running trajectories in parallel with {n_jobs_eff} process(es)")
+
+        def one(i: int):
+            seed = None if seeds is None else seeds[i]
+            tensor = self._run_one_repeat(seed=seed)  # (T, S, K)
+            return i, tensor.astype(dtype, copy=False)
+
+        tasks = (delayed(one)(i) for i in range(n_repeats))
+        results_iter = Parallel(n_jobs=n_jobs_eff, backend="loky", return_as="generator")(tasks)
+
+        if progress:
+            try:
+                from tqdm.auto import tqdm as tqdm_auto
+                results_iter = tqdm_auto(
+                    results_iter,
+                    total=n_repeats,
+                    desc="Running SSA trajectories",
+                    unit="run",
+                    dynamic_ncols=True,
+                )
+            except Exception:
+                pass
+
+        trajectories = np.empty((n_repeats, T, S, K), dtype=dtype)
+        for i, tensor in results_iter:
+            trajectories[i] = tensor
+
+        return trajectories
